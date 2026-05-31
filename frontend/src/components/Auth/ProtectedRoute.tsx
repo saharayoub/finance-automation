@@ -6,10 +6,13 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { accounts } = useMsal();
-  const isAuthenticated = accounts.length > 0;
+  const { accounts, inProgress } = useMsal();
 
-  if (!isAuthenticated) {
+  if (inProgress !== 'none') {
+    return null;
+  }
+
+  if (accounts.length === 0) {
     return <Navigate to="/login" replace />;
   }
 

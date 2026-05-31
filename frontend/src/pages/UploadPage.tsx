@@ -85,16 +85,14 @@ export const UploadPage: React.FC = () => {
           {/* Type selector cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '22rem' }}>
             {[
-              { value: 'ca' as const, icon: '📊', title: "Chiffre d'Affaire", description: 'Ventes locales et export mensuels' },
-              { value: 'engagement' as const, icon: '🏦', title: 'Engagement', description: 'Engagements par banque' },
+              { value: 'ca' as const, title: "Chiffre d'Affaire", description: 'Ventes locales et export mensuels' },
+              { value: 'engagement' as const, title: 'Engagement', description: 'Engagements par banque' },
             ].map((t) => (
               <button
                 key={t.value}
                 onClick={() => setFileType(t.value)}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
+                  display: 'block',
                   textAlign: 'left',
                   padding: '1.2rem 1.5rem',
                   borderRadius: '10px',
@@ -110,7 +108,6 @@ export const UploadPage: React.FC = () => {
                   transition: 'all 0.25s ease',
                 }}
               >
-                <span style={{ fontSize: '1.5rem' }}>{t.icon}</span>
                 <div>
                   <p style={{
                     fontFamily: "'Inter', sans-serif",
