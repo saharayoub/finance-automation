@@ -1,12 +1,13 @@
 import axios from 'axios';
+import { getAccessToken } from './authService';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('auth_token');
+api.interceptors.request.use(async (config) => {
+  const token = await getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

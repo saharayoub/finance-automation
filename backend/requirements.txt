@@ -7,5 +7,6 @@ httpx==0.28.1
 pandas==3.0.1
 python-multipart==0.0.29
 python-jose[cryptography]==3.5.0
+msal==1.28.0
 pytest==9.0.3
 pytest-asyncio==1.4.0
