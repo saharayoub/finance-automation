@@ -5,16 +5,27 @@ import { BlobMain } from '../components/Common/BlobMain';
 import { BlobSecond } from '../components/Common/BlobSecond';
 import { DotsGrid } from '../components/Common/DotsGrid';
 
-const typeLabels: Record<string, string> = { ca: "Chiffre d'Affaire", engagement: 'Engagement' };
+const typeLabels: Record<string, string> = { ca: "Chiffre d'Affaire", engagement: 'Engagement', versement: 'Versement' };
 
 export const UploadPage: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [fileType, setFileType] = useState<'ca' | 'engagement' | null>(null);
+  const [fileType, setFileType] = useState<'ca' | 'engagement' | 'versement' | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [csvError, setCsvError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  interface UploadHistoryEntry {
+    id: number;
+    filename: string;
+    type: string;
+    date: string;
+    size: string;
+    fileObj: File;
+  }
+  const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>([]);
+  const historyIdRef = useRef(0);
 
   const isCSV = (f: File) => /\.(csv|xlsx|xls)$/i.test(f.name);
 
@@ -60,6 +71,26 @@ export const UploadPage: React.FC = () => {
     setUploadError(null);
     await new Promise((r) => setTimeout(r, 2000));
     setUploadStatus('success');
+    const now = new Date();
+    const entry: UploadHistoryEntry = {
+      id: ++historyIdRef.current,
+      filename: file.name,
+      type: fileType,
+      date: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      size: (file.size / 1024).toFixed(1) + ' Ko',
+      fileObj: file,
+    };
+    setUploadHistory((prev) => [entry, ...prev]);
+  };
+
+  const removeHistoryEntry = (id: number) => {
+    setUploadHistory((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const badgeColors: Record<string, { bg: string; color: string }> = {
+    ca: { bg: '#EFE6DC', color: 'var(--earth-dark)' },
+    engagement: { bg: '#F0EBE1', color: 'var(--earth-mid)' },
+    versement: { bg: '#F0ECE6', color: 'var(--earth-light)' },
   };
 
   return (
@@ -104,6 +135,7 @@ export const UploadPage: React.FC = () => {
             {[
               { value: 'ca' as const, title: "Chiffre d'Affaire", description: 'Ventes locales et export mensuels' },
               { value: 'engagement' as const, title: 'Engagement', description: 'Engagements par banque' },
+              { value: 'versement' as const, title: 'Versement', description: 'Versements et transactions bancaires' },
             ].map((t) => (
               <button
                 key={t.value}
@@ -267,7 +299,7 @@ export const UploadPage: React.FC = () => {
                 position: 'relative', zIndex: 2, transition: 'all 0.3s ease',
               }}
             >
-              <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleFileSelect} />
+              <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} multiple={false} {...{ 'webkitdirectory': false } as any} />
 
               {uploadStatus === 'error' ? (
                 /* Situation 3 — Error after upload */
@@ -397,6 +429,112 @@ export const UploadPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ─── SESSION HISTORY ─── */}
+      {uploadHistory.length > 0 && (
+        <div style={{
+          padding: '2.5rem 8% 4rem', maxWidth: '48rem',
+        }}>
+          <div style={{
+            width: '100%', height: '1px', background: 'var(--earth-pale)', marginBottom: '1.5rem',
+          }} />
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            fontSize: '0.72rem', letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'var(--text-muted)',
+          }}>
+            HISTORIQUE DE SESSION ({uploadHistory.length})
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+            {uploadHistory.map((entry) => {
+              const badge = badgeColors[entry.type] || badgeColors.ca;
+              return (
+                <div
+                  key={entry.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.75rem 1rem', borderRadius: '8px',
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                    <span style={{
+                      display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '4px',
+                      background: badge.bg, color: badge.color,
+                      fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                      fontSize: '0.7rem', letterSpacing: '0.05em', textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {typeLabels[entry.type] || entry.type}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{
+                        fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                        fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {entry.filename}
+                      </p>
+                      <p style={{
+                        fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                        fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0',
+                      }}>
+                        {entry.size} &middot; {entry.date}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => {
+                        const url = URL.createObjectURL(entry.fileObj);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = entry.filename;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      style={{
+                        padding: '0.3rem 0.7rem', background: 'transparent',
+                        border: '1px solid var(--earth-pale)', borderRadius: '6px',
+                        fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                        fontSize: '0.75rem', color: 'var(--earth-mid)',
+                        cursor: 'pointer', display: 'inline-flex',
+                        alignItems: 'center', gap: '0.3rem',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--earth-dark)';
+                        e.currentTarget.style.color = 'var(--earth-dark)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--earth-pale)';
+                        e.currentTarget.style.color = 'var(--earth-mid)';
+                      }}
+                    >
+                      ↓ Télécharger
+                    </button>
+                    <button
+                    onClick={() => removeHistoryEntry(entry.id)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontFamily: "'Inter', sans-serif", fontSize: '1rem',
+                      color: 'var(--text-muted)', lineHeight: 1, padding: '0.25rem',
+                      flexShrink: 0, transition: 'color 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--earth-dark)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >
+                    ✕
+                  </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
