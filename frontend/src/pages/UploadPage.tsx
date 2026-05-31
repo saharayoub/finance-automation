@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Layout } from '../components/Common/Layout';
 import { ThinLine } from '../components/Common/ThinLine';
 import { BlobMain } from '../components/Common/BlobMain';
@@ -22,10 +22,28 @@ export const UploadPage: React.FC = () => {
     type: string;
     date: string;
     size: string;
-    fileObj: File;
+    fileData?: string;
   }
-  const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>([]);
-  const historyIdRef = useRef(0);
+
+  const loadHistory = (): UploadHistoryEntry[] => {
+    try {
+      const raw = localStorage.getItem('upload_history');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveHistory = (entries: UploadHistoryEntry[]) => {
+    localStorage.setItem('upload_history', JSON.stringify(entries));
+  };
+
+  const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>(loadHistory);
+  const historyIdRef = useRef(uploadHistory.reduce((max, e) => Math.max(max, e.id), 0));
+
+  useEffect(() => {
+    saveHistory(uploadHistory);
+  }, [uploadHistory]);
 
   const isCSV = (f: File) => /\.(csv|xlsx|xls)$/i.test(f.name);
 
@@ -69,7 +87,19 @@ export const UploadPage: React.FC = () => {
     setUploadStatus('uploading');
     setCsvError(null);
     setUploadError(null);
+
+    const fileDataPromise = file.size <= 3_000_000
+      ? new Promise<string | undefined>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => resolve(undefined);
+          reader.readAsDataURL(file);
+        })
+      : Promise.resolve(undefined);
+
     await new Promise((r) => setTimeout(r, 2000));
+    const fileData = await fileDataPromise;
+
     setUploadStatus('success');
     const now = new Date();
     const entry: UploadHistoryEntry = {
@@ -78,7 +108,7 @@ export const UploadPage: React.FC = () => {
       type: fileType,
       date: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       size: (file.size / 1024).toFixed(1) + ' Ko',
-      fileObj: file,
+      fileData,
     };
     setUploadHistory((prev) => [entry, ...prev]);
   };
@@ -486,14 +516,13 @@ export const UploadPage: React.FC = () => {
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {entry.fileData ? (
                     <button
                       onClick={() => {
-                        const url = URL.createObjectURL(entry.fileObj);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = entry.filename;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                        const link = document.createElement('a');
+                        link.href = entry.fileData!;
+                        link.download = entry.filename;
+                        link.click();
                       }}
                       style={{
                         padding: '0.3rem 0.7rem', background: 'transparent',
@@ -514,7 +543,14 @@ export const UploadPage: React.FC = () => {
                       }}
                     >
                       ↓ Télécharger
-                    </button>
+                    </button>                    ) : (
+                    <span style={{
+                      fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                      fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic',
+                    }}>
+                      Aperçu non disponible
+                    </span>
+                    )}
                     <button
                     onClick={() => removeHistoryEntry(entry.id)}
                     style={{
