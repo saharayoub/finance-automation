@@ -4,6 +4,7 @@ import { ThinLine } from '../components/Common/ThinLine';
 import { BlobMain } from '../components/Common/BlobMain';
 import { BlobSecond } from '../components/Common/BlobSecond';
 import { DotsGrid } from '../components/Common/DotsGrid';
+import api from '../services/api';
 
 const typeLabels: Record<string, string> = { ca: "Chiffre d'Affaire", engagement: 'Engagement', versement: 'Versement' };
 
@@ -90,11 +91,29 @@ export const UploadPage: React.FC = () => {
     setUploadStatus('idle');
   };
 
+  interface ValidationReport {
+    valid: boolean;
+    total_rows: number;
+    valid_rows: number;
+    error_count: number;
+    warning_count: number;
+    errors: { line: number; field: string; message: string }[];
+    warnings: { line: number; field: string; message: string }[];
+  }
+
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+
   const handleUpload = async () => {
     if (!file || !selectedType) return;
     setUploadStatus('uploading');
     setCsvError(null);
     setUploadError(null);
+
+    const fileTypeMap: Record<string, string> = { ca: 'CA', engagement: 'Engagement', versement: 'Versement' };
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_type', fileTypeMap[selectedType]);
 
     const fileDataPromise = file.size <= 3_000_000
       ? new Promise<string | undefined>((resolve) => {
@@ -105,20 +124,29 @@ export const UploadPage: React.FC = () => {
         })
       : Promise.resolve(undefined);
 
-    await new Promise((r) => setTimeout(r, 2000));
-    const fileData = await fileDataPromise;
+    try {
+      const res = await api.post('/api/upload', formData);
+      const fileData = await fileDataPromise;
 
-    setUploadStatus('success');
-    const now = new Date();
-    const entry: UploadHistoryEntry = {
-      id: ++historyIdRef.current,
-      filename: file.name,
-      type: selectedType,
-      date: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      size: (file.size / 1024).toFixed(1) + ' Ko',
-      fileData,
-    };
-    setUploadHistory((prev) => [entry, ...prev]);
+      setValidationReport(res.data.validation);
+      setUploadStatus('success');
+      const now = new Date();
+      const entry: UploadHistoryEntry = {
+        id: ++historyIdRef.current,
+        filename: file.name,
+        type: selectedType,
+        date: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        size: (file.size / 1024).toFixed(1) + ' Ko',
+        fileData,
+      };
+      setUploadHistory((prev) => [entry, ...prev]);
+    } catch (err: any) {
+      console.error('Upload error:', err?.response?.data || err?.message || err);
+      const detail = err?.response?.data?.detail;
+      const message = detail?.message || (typeof detail === 'string' ? detail : null) || err?.message || 'Erreur inconnue lors de l\'upload.';
+      setUploadError(message);
+      setUploadStatus('error');
+    }
   };
 
   const removeHistoryEntry = (id: number) => {
@@ -330,17 +358,16 @@ export const UploadPage: React.FC = () => {
           {/* SUCCESS CARD */}
           {uploadStatus === 'success' ? (
             <div style={{
-              width: '85%', maxWidth: '360px', background: 'white',
-              borderRadius: '16px', padding: '3rem 2rem',
+              width: '85%', maxWidth: '460px', background: 'white',
+              borderRadius: '16px', padding: '2.5rem 2rem',
               position: 'relative', zIndex: 2,
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
               boxShadow: '0 8px 30px rgba(92,74,58,0.1)',
               border: '1px solid var(--earth-pale)',
             }}>
               <button
                 onClick={goBack}
                 style={{
-                  position: 'absolute', top: '1rem', right: '1rem',
+                  position: 'absolute', top: '0.75rem', right: '0.75rem',
                   background: 'none', border: 'none', cursor: 'pointer',
                   fontFamily: "'Inter', sans-serif", fontSize: '1.2rem',
                   color: 'var(--text-muted)', lineHeight: 1, padding: '0.25rem',
@@ -348,30 +375,163 @@ export const UploadPage: React.FC = () => {
               >
                 ✕
               </button>
-              <div style={{
-                width: '60px', height: '60px', borderRadius: '50%',
-                background: '#F0F4F0', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', marginBottom: '1.2rem',
-              }}>
-                <span style={{ fontSize: '1.6rem', color: '#5A7A5C' }}>✓</span>
+
+              {/* Icon & filename */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '50%',
+                  background: '#F0F4F0', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: '1.2rem', color: '#5A7A5C' }}>✓</span>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                    fontSize: '0.95rem', color: 'var(--earth-dark)', margin: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {file?.name}
+                  </p>
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                    fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.1rem 0 0',
+                  }}>
+                    {selectedType ? typeLabels[selectedType] : ''}
+                  </p>
+                </div>
               </div>
-              <p style={{
-                fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                fontSize: '1rem', color: 'var(--earth-dark)', margin: 0,
+
+              {/* Zone 1 — Summary cards */}
+              <div style={{
+                display: 'flex', gap: '0.6rem', marginBottom: '1.25rem',
               }}>
-                Fichier uploadé avec succès.
-              </p>
-              <p style={{
-                fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                fontSize: '0.82rem', color: 'var(--text-muted)',
-                margin: '0.5rem 0 0',
-              }}>
-                {file?.name} &middot; {selectedType ? typeLabels[selectedType] : ''}
-              </p>
+                {[
+                  { label: 'Lignes analysées', value: validationReport?.total_rows ?? 0, bg: '#EFE6DC', color: 'var(--earth-dark)' },
+                  { label: 'Erreurs', value: validationReport?.error_count ?? 0, bg: '#F0E0DA', color: '#A05A4A' },
+                  { label: 'Avertissements', value: validationReport?.warning_count ?? 0, bg: '#F0EBE1', color: '#8B7A5C' },
+                ].map((card) => (
+                  <div key={card.label} style={{
+                    flex: 1, borderRadius: '10px', background: card.bg,
+                    padding: '0.75rem 0.5rem', textAlign: 'center',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  }}>
+                    <span style={{
+                      fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                      fontSize: '1.4rem', color: card.color, lineHeight: 1.1,
+                    }}>
+                      {card.value}
+                    </span>
+                    <span style={{
+                      fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                      fontSize: '0.62rem', color: card.color, marginTop: '0.2rem',
+                      letterSpacing: '0.02em', opacity: 0.85,
+                    }}>
+                      {card.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Zone 2 — Errors */}
+              {validationReport && validationReport.error_count > 0 && (
+                <div style={{
+                  background: '#FDF6F4', borderRadius: '10px',
+                  border: '1px solid #D4A090', padding: '0.75rem 1rem',
+                  marginBottom: validationReport.warning_count > 0 ? '0.75rem' : '1.25rem',
+                }}>
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                    fontSize: '0.65rem', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: '#A05A4A', margin: '0 0 0.5rem',
+                  }}>
+                    ERREURS
+                  </p>
+                  <div style={{
+                    maxHeight: validationReport.errors.length > 5 ? '140px' : 'none',
+                    overflowY: validationReport.errors.length > 5 ? 'auto' : 'visible',
+                  }}>
+                    {validationReport.errors.map((err, i) => (
+                      <div key={i} style={{
+                        display: 'flex', gap: '0.5rem',
+                        padding: '0.3rem 0',
+                        borderBottom: i < validationReport.errors.length - 1 ? '1px solid rgba(212,160,144,0.3)' : 'none',
+                      }}>
+                        <span style={{
+                          fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                          fontSize: '0.75rem', color: '#A05A4A', whiteSpace: 'nowrap', flexShrink: 0,
+                        }}>
+                          L{err.line}
+                        </span>
+                        <span style={{
+                          fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                          fontSize: '0.75rem', color: 'var(--earth-dark)', lineHeight: 1.4,
+                        }}>
+                          {err.message}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Zone 3 — Warnings */}
+              {validationReport && validationReport.warning_count > 0 && (
+                <div style={{
+                  background: '#FBF8F0', borderRadius: '10px',
+                  border: '1px solid #D6C9AE', padding: '0.75rem 1rem',
+                  marginBottom: '1.25rem',
+                }}>
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                    fontSize: '0.65rem', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: '#8B7A5C', margin: '0 0 0.5rem',
+                  }}>
+                    AVERTISSEMENTS
+                  </p>
+                  <div style={{
+                    maxHeight: validationReport.warnings.length > 5 ? '140px' : 'none',
+                    overflowY: validationReport.warnings.length > 5 ? 'auto' : 'visible',
+                  }}>
+                    {validationReport.warnings.map((w, i) => (
+                      <div key={i} style={{
+                        display: 'flex', gap: '0.5rem',
+                        padding: '0.3rem 0',
+                        borderBottom: i < validationReport.warnings.length - 1 ? '1px solid rgba(214,201,174,0.3)' : 'none',
+                      }}>
+                        <span style={{
+                          fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                          fontSize: '0.75rem', color: '#8B7A5C', whiteSpace: 'nowrap', flexShrink: 0,
+                        }}>
+                          L{w.line}
+                        </span>
+                        <span style={{
+                          fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                          fontSize: '0.75rem', color: 'var(--earth-dark)', lineHeight: 1.4,
+                        }}>
+                          {w.message}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* All clear */}
+              {validationReport && validationReport.error_count === 0 && validationReport.warning_count === 0 && (
+                <p style={{
+                  fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                  fontSize: '0.85rem', color: '#5A7A5C', textAlign: 'center',
+                  margin: '0 0 1.25rem',
+                }}>
+                  Données valides. Prêt pour l'analyse IA.
+                </p>
+              )}
+
               <button
                 onClick={() => resetFile(false)}
                 style={{
-                  marginTop: '1.5rem', padding: '0.7rem 1.5rem',
+                  width: '100%', padding: '0.7rem 1.5rem',
                   background: 'transparent', border: '1px solid var(--earth-dark)',
                   borderRadius: '6px', fontFamily: "'Inter', sans-serif",
                   fontWeight: 500, fontSize: '0.85rem', color: 'var(--earth-dark)',
