@@ -8,9 +8,9 @@ import { DotsGrid } from '../components/Common/DotsGrid';
 const typeLabels: Record<string, string> = { ca: "Chiffre d'Affaire", engagement: 'Engagement', versement: 'Versement' };
 
 export const UploadPage: React.FC = () => {
+  const [selectedType, setSelectedType] = useState<'ca' | 'engagement' | 'versement' | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [fileType, setFileType] = useState<'ca' | 'engagement' | 'versement' | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [csvError, setCsvError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -79,11 +79,19 @@ export const UploadPage: React.FC = () => {
     setCsvError(null);
     setUploadError(null);
     setUploadStatus('idle');
-    if (resetType) setFileType(null);
+    if (resetType) setSelectedType(null);
+  };
+
+  const goBack = () => {
+    setSelectedType(null);
+    setFile(null);
+    setCsvError(null);
+    setUploadError(null);
+    setUploadStatus('idle');
   };
 
   const handleUpload = async () => {
-    if (!file || !fileType) return;
+    if (!file || !selectedType) return;
     setUploadStatus('uploading');
     setCsvError(null);
     setUploadError(null);
@@ -105,7 +113,7 @@ export const UploadPage: React.FC = () => {
     const entry: UploadHistoryEntry = {
       id: ++historyIdRef.current,
       filename: file.name,
-      type: fileType,
+      type: selectedType,
       date: now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       size: (file.size / 1024).toFixed(1) + ' Ko',
       fileData,
@@ -123,6 +131,80 @@ export const UploadPage: React.FC = () => {
     versement: { bg: '#F0ECE6', color: 'var(--earth-light)' },
   };
 
+  const types = [
+    { value: 'ca' as const, title: "Chiffre d'Affaire", description: 'Ventes locales et export mensuels' },
+    { value: 'engagement' as const, title: 'Engagement', description: 'Engagements par banque' },
+    { value: 'versement' as const, title: 'Versement', description: 'Versements et transactions bancaires' },
+  ];
+
+  // ─── ÉTAPE 1 : Sélection du type ───
+  if (selectedType === null) {
+    return (
+      <Layout>
+        <div style={{
+          padding: '4rem 4rem 4rem 8%', display: 'flex', flexDirection: 'column',
+          justifyContent: 'center', minHeight: 'calc(100vh - 88px)',
+        }}>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            fontSize: '0.72rem', letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'var(--text-muted)',
+          }}>
+            IMPORT DE DONNÉES
+          </p>
+          <ThinLine />
+          <h1 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+            fontWeight: 700, lineHeight: 1.1, color: 'var(--earth-dark)',
+          }}>
+            Choisissez le type de fichier.
+          </h1>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 300,
+            fontSize: '1.05rem', lineHeight: 1.85, color: 'var(--text-secondary)',
+            marginTop: '0.75rem', maxWidth: '24rem',
+          }}>
+            Sélectionnez la catégorie correspondant à vos données.
+          </p>
+          <div style={{ height: '2.5rem' }} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', maxWidth: '700px', width: '100%', alignSelf: 'center' }}>
+            {types.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setSelectedType(t.value)}
+                style={{
+                  display: 'block', textAlign: 'left', padding: '2.5rem',
+                  borderRadius: '14px', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                  border: '1px solid var(--earth-pale)',
+                  background: 'white',
+                  transition: 'all 0.25s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--earth-dark)';
+                  e.currentTarget.style.background = 'var(--bg-secondary)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(92,74,58,0.12)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--earth-pale)';
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div>
+                  <p style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: '1.2rem', color: 'var(--earth-dark)', margin: 0 }}>{t.title}</p>
+                  <p style={{ fontFamily: "'Inter', sans-serif", fontWeight: 300, fontSize: '1rem', color: 'var(--text-muted)', margin: '0.15rem 0 0' }}>{t.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ─── ÉTAPE 2 : Upload ───
   return (
     <Layout>
       <style>{`
@@ -136,6 +218,20 @@ export const UploadPage: React.FC = () => {
           padding: '4rem 4rem 4rem 8%', display: 'flex',
           flexDirection: 'column', justifyContent: 'center',
         }}>
+          <button
+            onClick={goBack}
+            style={{
+              alignSelf: 'flex-start', background: 'none', border: 'none',
+              cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+              fontWeight: 500, fontSize: '0.82rem', color: 'var(--earth-mid)',
+              padding: '0.5rem 0', transition: 'color 0.2s', marginBottom: '0.5rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--earth-dark)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--earth-mid)'}
+          >
+            ← Retour
+          </button>
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 500,
             fontSize: '0.72rem', letterSpacing: '0.18em',
@@ -156,37 +252,16 @@ export const UploadPage: React.FC = () => {
             fontSize: '1.05rem', lineHeight: 1.85, color: 'var(--text-secondary)',
             marginTop: '0.75rem', maxWidth: '24rem',
           }}>
-            Sélectionnez le type de fichier puis déposez votre CSV.
+            {typeLabels[selectedType]} &mdash; déposez votre fichier ci-contre.
+          </p>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 300,
+            fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-muted)',
+            marginTop: '0.25rem', fontStyle: 'italic',
+          }}>
+            {typeLabels[selectedType]}
           </p>
           <div style={{ height: '2.5rem' }} />
-
-          {/* Type selector */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '22rem' }}>
-            {[
-              { value: 'ca' as const, title: "Chiffre d'Affaire", description: 'Ventes locales et export mensuels' },
-              { value: 'engagement' as const, title: 'Engagement', description: 'Engagements par banque' },
-              { value: 'versement' as const, title: 'Versement', description: 'Versements et transactions bancaires' },
-            ].map((t) => (
-              <button
-                key={t.value}
-                onClick={() => setFileType(t.value)}
-                style={{
-                  display: 'block', textAlign: 'left', padding: '1.2rem 1.5rem',
-                  borderRadius: '10px', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-                  border: fileType === t.value ? '2px solid var(--earth-dark)' : '1px solid var(--earth-pale)',
-                  background: fileType === t.value ? 'var(--bg-secondary)' : 'white',
-                  boxShadow: fileType === t.value ? '0 4px 16px rgba(92,74,58,0.12)' : 'none',
-                  transition: 'all 0.25s ease',
-                }}
-              >
-                <div>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '0.9rem', color: 'var(--earth-dark)', margin: 0 }}>{t.title}</p>
-                  <p style={{ fontFamily: "'Inter', sans-serif", fontWeight: 300, fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0' }}>{t.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-          <div style={{ height: '2rem' }} />
 
           {/* Button / Upload progress */}
           {uploadStatus === 'uploading' ? (
@@ -216,24 +291,24 @@ export const UploadPage: React.FC = () => {
           ) : uploadStatus === 'idle' ? (
             <button
               onClick={handleUpload}
-              disabled={!file || !fileType}
+              disabled={!file || !selectedType}
               style={{
                 maxWidth: '22rem', width: '100%', padding: '0.9rem 2rem',
-                background: file && fileType ? 'var(--earth-dark)' : 'var(--earth-pale)',
-                color: file && fileType ? 'white' : 'var(--text-muted)',
+                background: file && selectedType ? 'var(--earth-dark)' : 'var(--earth-pale)',
+                color: file && selectedType ? 'white' : 'var(--text-muted)',
                 border: 'none', borderRadius: '6px',
                 fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '0.95rem',
-                cursor: file && fileType ? 'pointer' : 'not-allowed',
+                cursor: file && selectedType ? 'pointer' : 'not-allowed',
                 letterSpacing: '0.03em', transition: 'all 0.3s ease',
               }}
               onMouseEnter={(e) => {
-                if (file && fileType) {
+                if (file && selectedType) {
                   e.currentTarget.style.background = 'var(--accent)';
                   e.currentTarget.style.transform = 'translateY(-1px)';
                 }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = file && fileType ? 'var(--earth-dark)' : 'var(--earth-pale)';
+                e.currentTarget.style.background = file && selectedType ? 'var(--earth-dark)' : 'var(--earth-pale)';
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
@@ -263,7 +338,7 @@ export const UploadPage: React.FC = () => {
               border: '1px solid var(--earth-pale)',
             }}>
               <button
-                onClick={() => resetFile(true)}
+                onClick={goBack}
                 style={{
                   position: 'absolute', top: '1rem', right: '1rem',
                   background: 'none', border: 'none', cursor: 'pointer',
@@ -291,10 +366,10 @@ export const UploadPage: React.FC = () => {
                 fontSize: '0.82rem', color: 'var(--text-muted)',
                 margin: '0.5rem 0 0',
               }}>
-                {file?.name} &middot; {fileType ? typeLabels[fileType] : ''}
+                {file?.name} &middot; {selectedType ? typeLabels[selectedType] : ''}
               </p>
               <button
-                onClick={() => resetFile(true)}
+                onClick={() => resetFile(false)}
                 style={{
                   marginTop: '1.5rem', padding: '0.7rem 1.5rem',
                   background: 'transparent', border: '1px solid var(--earth-dark)',
@@ -332,7 +407,6 @@ export const UploadPage: React.FC = () => {
               <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} multiple={false} {...{ 'webkitdirectory': false } as any} />
 
               {uploadStatus === 'error' ? (
-                /* Situation 3 — Error after upload */
                 <>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 500,
@@ -364,7 +438,6 @@ export const UploadPage: React.FC = () => {
                   )}
                 </>
               ) : file ? (
-                /* Situation 1 — File selected (idle or uploading) */
                 <>
                   <div style={{
                     width: '60px', height: '60px', borderRadius: '50%',
@@ -411,7 +484,6 @@ export const UploadPage: React.FC = () => {
                   )}
                 </>
               ) : (
-                /* Empty drop zone */
                 <>
                   <div style={{
                     width: '60px', height: '60px', borderRadius: '50%',
