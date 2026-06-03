@@ -118,9 +118,6 @@ def validate(data: list[dict], file_type: str, original_columns: list | None = N
     date_fields = DATE_FIELDS[file_type]
     required_fields = REQUIRED_FIELDS[file_type]
 
-    seen_combinations: set[tuple] = set()
-    seen_titles: set[str] = set()
-
     for idx, row in enumerate(corrected_data):
         line_num = idx + 1
         row_errors: list[dict] = []
@@ -163,8 +160,6 @@ def validate(data: list[dict], file_type: str, original_columns: list | None = N
             montant = row.get("MontantCA")
             local = row.get("LOCAL")
             export = row.get("EXPORT")
-            societe = row.get("Société")
-            date_val = row.get("Date")
             has_local = original_columns is None or ("LOCAL" in original_columns and "EXPORT" in original_columns)
             if has_local and all(
                 v is not None and isinstance(v, (int, float))
@@ -181,48 +176,71 @@ def validate(data: list[dict], file_type: str, original_columns: list | None = N
                         ),
                     })
                     row_valid = False
+        if row_valid:
+            valid_rows += 1
+        errors.extend(row_errors)
+
+    from collections import defaultdict
+
+    if file_type == "CA":
+        groups: dict[str, list[int]] = defaultdict(list)
+        for idx, row in enumerate(corrected_data):
+            societe = row.get("Société")
+            date_val = row.get("Date")
             if societe is not None and date_val is not None:
-                combo = (str(societe).strip(), str(date_val).strip())
-                if combo in seen_combinations:
-                    warnings.append({
-                        "line": line_num,
-                        "field": "Société/Date",
-                        "message": f"Ligne {line_num} : la combinaison Société/Date '{societe}' / '{date_val}' apparaît plusieurs fois.",
-                    })
-                else:
-                    seen_combinations.add(combo)
+                date_str = str(date_val).strip()
+                mm_yyyy = ""
+                if re.match(r"^\d{2}/\d{2}/\d{4}$", date_str):
+                    mm_yyyy = date_str[3:]
+                elif isinstance(date_val, datetime):
+                    mm_yyyy = date_val.strftime("%m/%Y")
+                if mm_yyyy:
+                    key = f"{str(societe).strip()}|{mm_yyyy}"
+                    groups[key].append(idx + 1)
+        for key, lines in groups.items():
+            if len(lines) > 1:
+                societe_name, month = key.split("|", 1)
+                warnings.append({
+                    "line": lines[0],
+                    "field": "Société/Mois",
+                    "message": f"Doublon détecté: Société '{societe_name}' / Mois '{month}' apparaît {len(lines)} fois.",
+                })
 
-        elif file_type == "Engagement":
-            title = row.get("Title")
-            if title is not None and str(title).strip():
-                title_key = str(title).strip()
-                if title_key in seen_titles:
-                    warnings.append({
-                        "line": line_num,
-                        "field": "Title",
-                        "message": f"Ligne {line_num} : le Title '{title_key}' apparaît plusieurs fois dans le fichier.",
-                    })
-                else:
-                    seen_titles.add(title_key)
+    elif file_type == "Engagement":
+        groups = defaultdict(list)
+        for idx, row in enumerate(corrected_data):
+            parts = []
+            for field in ["Société", "Date", "Libelle", "Designation", "BanqueEnga"]:
+                v = row.get(field)
+                parts.append(str(v).strip() if v is not None else "")
+            key = "|".join(parts)
+            groups[key].append(idx + 1)
+        for key, lines in groups.items():
+            if len(lines) > 1:
+                vals = key.split("|")
+                warnings.append({
+                    "line": lines[0],
+                    "field": "Société/Date/Libelle/Designation/BanqueEnga",
+                    "message": f"Doublon détecté: {vals[0]} / {vals[1]} / {vals[2]} / {vals[3]} / {vals[4]} apparaît {len(lines)} fois.",
+                })
 
-        elif file_type == "Versement":
+    elif file_type == "Versement":
+        groups = defaultdict(list)
+        for idx, row in enumerate(corrected_data):
             societe = row.get("Société")
             date_val = row.get("Date")
             banque = row.get("Banque")
             if societe is not None and date_val is not None and banque is not None:
-                combo = (str(societe).strip(), str(date_val).strip(), str(banque).strip())
-                if combo in seen_combinations:
-                    warnings.append({
-                        "line": line_num,
-                        "field": "Société/Date/Banque",
-                        "message": f"Ligne {line_num} : la combinaison Société/Date/Banque apparaît plusieurs fois.",
-                    })
-                else:
-                    seen_combinations.add(combo)
-
-        if row_valid:
-            valid_rows += 1
-        errors.extend(row_errors)
+                key = f"{str(societe).strip()}|{str(date_val).strip()}|{str(banque).strip()}"
+                groups[key].append(idx + 1)
+        for key, lines in groups.items():
+            if len(lines) > 1:
+                parts = key.split("|")
+                warnings.append({
+                    "line": lines[0],
+                    "field": "Société/Date/Banque",
+                    "message": f"Doublon détecté: {parts[0]} / {parts[1]} / {parts[2]} apparaît {len(lines)} fois.",
+                })
 
     result["valid"] = len(errors) == 0
     result["valid_rows"] = valid_rows
