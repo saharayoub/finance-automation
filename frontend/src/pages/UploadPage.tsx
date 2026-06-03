@@ -101,7 +101,23 @@ export const UploadPage: React.FC = () => {
     warnings: { line: number; field: string; message: string }[];
   }
 
+  interface AiAnomaly {
+    type: string;
+    societe: string;
+    regle: string;
+    message: string;
+    lignes_concernees?: number[];
+    valeurs?: { valeur_actuelle?: number; valeur_reference?: number; ecart_pourcentage?: number };
+  }
+
+  interface AiAnalysis {
+    anomalies: AiAnomaly[];
+    resume: { total_anomalies: number; total_avertissements: number; conclusion: string };
+    ia_available: boolean;
+  }
+
   const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
 
   const handleUpload = async () => {
     if (!file || !selectedType) return;
@@ -129,6 +145,7 @@ export const UploadPage: React.FC = () => {
       const fileData = await fileDataPromise;
 
       setValidationReport(res.data.validation);
+      setAiAnalysis(res.data.ai_analysis);
       setUploadStatus('success');
       const now = new Date();
       const entry: UploadHistoryEntry = {
@@ -517,31 +534,113 @@ export const UploadPage: React.FC = () => {
                 </div>
               )}
 
-              {/* All clear */}
-              {validationReport && validationReport.error_count === 0 && validationReport.warning_count === 0 && (
+              {/* Zone 4 — AI Analysis */}
+              <div style={{
+                background: '#F5F3EF', borderRadius: '10px',
+                border: '1px solid #D6C9AE', padding: '0.75rem 1rem',
+                marginBottom: '1.25rem',
+              }}>
                 <p style={{
-                  fontFamily: "'Inter', sans-serif", fontWeight: 400,
-                  fontSize: '0.85rem', color: '#5A7A5C', textAlign: 'center',
-                  margin: '0 0 1.25rem',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                  fontSize: '0.65rem', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#7A6B5A', margin: '0 0 0.5rem',
                 }}>
-                  Données valides. Prêt pour l'analyse IA.
+                  ANALYSE IA
                 </p>
-              )}
+                {aiAnalysis && aiAnalysis.ia_available === false ? (
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                    fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0,
+                  }}>
+                    Analyse IA non disponible.
+                  </p>
+                ) : aiAnalysis && aiAnalysis.anomalies.length > 0 ? (
+                  <div style={{
+                    maxHeight: aiAnalysis.anomalies.length > 5 ? '200px' : 'none',
+                    overflowY: aiAnalysis.anomalies.length > 5 ? 'auto' : 'visible',
+                  }}>
+                    {aiAnalysis.anomalies.map((a, i) => (
+                      <div key={i} style={{
+                        padding: '0.5rem 0',
+                        borderBottom: i < aiAnalysis.anomalies.length - 1 ? '1px solid rgba(214,201,174,0.3)' : 'none',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                          <span style={{
+                            display: 'inline-block', padding: '0.15rem 0.45rem', borderRadius: '4px',
+                            fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                            fontSize: '0.6rem', letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            background: a.type === 'ANOMALIE' ? '#F0E0DA' : '#F0EBE1',
+                            color: a.type === 'ANOMALIE' ? '#A05A4A' : '#8B7A5C',
+                          }}>
+                            {a.type === 'ANOMALIE' ? 'ANOMALIE' : 'AVERTISSEMENT'}
+                          </span>
+                          <span style={{
+                            fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                            fontSize: '0.8rem', color: 'var(--earth-dark)',
+                          }}>
+                            {a.societe}
+                          </span>
+                        </div>
+                        <p style={{
+                          fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                          fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4,
+                          margin: 0,
+                        }}>
+                          {a.message}
+                        </p>
+                        {a.valeurs?.ecart_pourcentage != null && (
+                          <span style={{
+                            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                            fontSize: '0.7rem', color: '#A05A4A', marginTop: '0.15rem', display: 'inline-block',
+                          }}>
+                            Écart : {a.valeurs.ecart_pourcentage}%
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                    fontSize: '0.8rem', color: '#5A7A5C', margin: 0,
+                  }}>
+                    ✓ Aucune anomalie détectée par l'analyse IA.
+                  </p>
+                )}
+              </div>
 
-              <button
-                onClick={() => resetFile(false)}
-                style={{
-                  width: '100%', padding: '0.7rem 1.5rem',
-                  background: 'transparent', border: '1px solid var(--earth-dark)',
-                  borderRadius: '6px', fontFamily: "'Inter', sans-serif",
-                  fontWeight: 500, fontSize: '0.85rem', color: 'var(--earth-dark)',
-                  cursor: 'pointer', transition: 'all 0.3s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--earth-dark)'; e.currentTarget.style.color = 'white'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
-              >
-                Uploader un autre fichier
-              </button>
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => resetFile(false)}
+                  style={{
+                    flex: 1, padding: '0.7rem 0',
+                    background: 'transparent', border: '1px solid var(--earth-pale)',
+                    borderRadius: '6px', fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500, fontSize: '0.8rem', color: 'var(--earth-mid)',
+                    cursor: 'pointer', transition: 'all 0.3s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--earth-dark)'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--earth-pale)'; e.currentTarget.style.color = 'var(--earth-mid)'; }}
+                >
+                  Corriger le fichier
+                </button>
+                <button
+                  onClick={() => alert('Envoi vers SharePoint — disponible en Phase 5')}
+                  style={{
+                    flex: 1, padding: '0.7rem 0',
+                    background: 'var(--earth-dark)', border: 'none',
+                    borderRadius: '6px', fontFamily: "'Inter', sans-serif",
+                    fontWeight: 500, fontSize: '0.8rem', color: 'white',
+                    cursor: 'pointer', transition: 'all 0.3s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--earth-dark)'; }}
+                >
+                  Confirmer et envoyer
+                </button>
+              </div>
             </div>
           ) : (
             /* DROP ZONE or FILE INFO or ERROR */

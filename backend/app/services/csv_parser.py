@@ -115,12 +115,29 @@ def parse_file(content: bytes, filename: str, file_type: str) -> dict:
         name = name.encode("ascii", "ignore").decode("ascii")
         return name
 
+    COLUMN_ALIASES = {
+        "Versement": {
+            "societever": "Société",
+            "date_ver": "Date",
+            "banque_ver": "Banque",
+            "versement": "MontantVersement",
+        },
+    }
+
     rename_map = {}
     for col in df.columns:
+        norm_col = _normalize_col(col)
+        matched_standard = None
         for standard in STANDARD_COLUMNS.get(file_type, []):
-            if _normalize_col(col) == _normalize_col(standard):
-                rename_map[col] = standard
+            if norm_col == _normalize_col(standard):
+                matched_standard = standard
                 break
+        if matched_standard:
+            rename_map[col] = matched_standard
+        else:
+            alias_map = COLUMN_ALIASES.get(file_type, {})
+            if norm_col in alias_map:
+                rename_map[col] = alias_map[norm_col]
     df = df.rename(columns=rename_map)
 
     original_columns = [c for c in STANDARD_COLUMNS.get(file_type, []) if c in df.columns]

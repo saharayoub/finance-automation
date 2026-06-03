@@ -5,7 +5,7 @@ import uuid
 from typing import Any
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 
-from app.services import csv_parser, validation_service
+from app.services import csv_parser, validation_service, ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +94,13 @@ async def upload_file(
     original_columns = parse_result.get("original_columns", [])
     validation_result = validation_service.validate(data, file_type, original_columns=original_columns)
 
+    corrected_data = validation_result.get("corrected_data", data)
+    ai_result = await ai_service.analyze_data(corrected_data, file_type, filename)
+
     response = _clean_nans({
         "parse": parse_result,
         "validation": validation_result,
+        "ai_analysis": ai_result,
     })
 
     if validation_result["valid"]:
