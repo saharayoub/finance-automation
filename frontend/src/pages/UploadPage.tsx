@@ -41,6 +41,10 @@ export const UploadPage: React.FC = () => {
 
   const [uploadHistory, setUploadHistory] = useState<UploadHistoryEntry[]>(loadHistory);
   const historyIdRef = useRef(uploadHistory.reduce((max, e) => Math.max(max, e.id), 0));
+  const [showAll, setShowAll] = useState(false);
+  const [filterType, setFilterType] = useState<string>('all');
+  const filteredHistory = filterType === 'all' ? uploadHistory : uploadHistory.filter(e => e.type === filterType);
+  const visibleHistory = showAll ? filteredHistory : filteredHistory.slice(0, 8);
 
   useEffect(() => {
     saveHistory(uploadHistory);
@@ -801,23 +805,44 @@ export const UploadPage: React.FC = () => {
       {/* ─── SESSION HISTORY ─── */}
       {uploadHistory.length > 0 && (
         <div style={{
-          padding: '2.5rem 8% 4rem', maxWidth: '800px', margin: '0 auto',
+          padding: '2.5rem 8% 4rem', width: '100%',
         }}>
           <div style={{
             width: '100%', height: '1px', background: 'var(--earth-pale)', marginBottom: '1.5rem',
           }} />
-          <p style={{
-            fontFamily: "'Inter', sans-serif", fontWeight: 500,
-            fontSize: '0.72rem', letterSpacing: '0.18em',
-            textTransform: 'uppercase', color: 'var(--text-muted)',
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: '1rem',
           }}>
-            HISTORIQUE DE SESSION ({uploadHistory.length})
-          </p>
+            <p style={{
+              fontFamily: "'Inter', sans-serif", fontWeight: 500,
+              fontSize: '0.72rem', letterSpacing: '0.18em',
+              textTransform: 'uppercase', color: 'var(--text-muted)', margin: 0,
+            }}>
+              HISTORIQUE DE SESSION ({uploadHistory.length})
+            </p>
+            <select
+              value={filterType}
+              onChange={(e) => { setFilterType(e.target.value); setShowAll(false); }}
+              style={{
+                padding: '0.35rem 1rem', borderRadius: '6px',
+                border: '1px solid var(--earth-pale)', background: 'white',
+                fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                fontSize: '0.78rem', color: 'var(--text-primary)',
+                cursor: 'pointer', outline: 'none',
+              }}
+            >
+              <option value="all">Tous les types</option>
+              <option value="ca">Chiffre d'Affaire</option>
+              <option value="engagement">Engagement</option>
+              <option value="versement">Versement</option>
+            </select>
+          </div>
 
           <div style={{
-            marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem',
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem',
           }}>
-            {uploadHistory.map((entry, idx) => {
+            {visibleHistory.map((entry) => {
               const badge = badgeColors[entry.type] || badgeColors.ca;
               return (
                 <div key={entry.id} style={{
@@ -898,6 +923,32 @@ export const UploadPage: React.FC = () => {
               );
             })}
           </div>
+
+          {filteredHistory.length > 8 && (
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+              <button
+                onClick={() => setShowAll(!showAll)}
+                style={{
+                  background: 'none', border: '1px solid var(--earth-pale)',
+                  borderRadius: '6px', padding: '0.5rem 1.5rem',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                  fontSize: '0.82rem', color: 'var(--earth-mid)',
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--earth-dark)';
+                  e.currentTarget.style.color = 'var(--earth-dark)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--earth-pale)';
+                  e.currentTarget.style.color = 'var(--earth-mid)';
+                }}
+              >
+                {showAll ? 'Voir moins' : `Voir plus (${filteredHistory.length - 8})`}
+              </button>
+            </div>
+          )}
+
         </div>
       )}
     </Layout>
