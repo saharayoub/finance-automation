@@ -259,9 +259,9 @@ export const UploadPage: React.FC = () => {
       <div className="split-screen" style={{ display: 'flex', minHeight: 'calc(100vh - 88px)', width: '100%' }}>
         {/* ─── LEFT COLUMN ─── */}
         <div className="split-left" style={{
-          flex: '0 0 50%', background: 'var(--bg-primary)',
-          padding: '4rem 4rem 4rem 8%', display: 'flex',
-          flexDirection: 'column', justifyContent: 'center',
+          flex: '0 0 35%', background: 'var(--bg-primary)',
+          padding: '8% 3rem 4rem 6%', display: 'flex',
+          flexDirection: 'column', justifyContent: 'flex-start',
         }}>
           <button
             onClick={goBack}
@@ -364,8 +364,8 @@ export const UploadPage: React.FC = () => {
 
         {/* ─── RIGHT COLUMN ─── */}
         <div className="split-right" style={{
-          flex: '0 0 50%', background: 'var(--bg-secondary)',
-          padding: '4rem', display: 'flex', alignItems: 'center',
+          flex: '0 0 65%', background: 'var(--bg-secondary)',
+          padding: '3rem 5%', display: 'flex', alignItems: 'flex-start',
           justifyContent: 'center', position: 'relative', overflow: 'hidden',
         }}>
           <BlobMain />
@@ -375,8 +375,8 @@ export const UploadPage: React.FC = () => {
           {/* SUCCESS CARD */}
           {uploadStatus === 'success' ? (
             <div style={{
-              width: '85%', maxWidth: '460px', background: 'white',
-              borderRadius: '16px', padding: '2.5rem 2rem',
+              width: '100%', background: 'white',
+              borderRadius: '16px', padding: '2.5rem 2.5rem',
               position: 'relative', zIndex: 2,
               boxShadow: '0 8px 30px rgba(92,74,58,0.1)',
               border: '1px solid var(--earth-pale)',
@@ -405,14 +405,14 @@ export const UploadPage: React.FC = () => {
                 <div style={{ minWidth: 0 }}>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                    fontSize: '0.95rem', color: 'var(--earth-dark)', margin: 0,
+                    fontSize: '1.2rem', color: 'var(--earth-dark)', margin: 0,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {file?.name}
                   </p>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                    fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.1rem 0 0',
+                    fontSize: '1rem', color: 'var(--text-muted)', margin: '0.1rem 0 0',
                   }}>
                     {selectedType ? typeLabels[selectedType] : ''}
                   </p>
@@ -435,13 +435,13 @@ export const UploadPage: React.FC = () => {
                   }}>
                     <span style={{
                       fontFamily: "'Inter', sans-serif", fontWeight: 700,
-                      fontSize: '1.4rem', color: card.color, lineHeight: 1.1,
+                      fontSize: '2.5rem', color: card.color, lineHeight: 1.1,
                     }}>
                       {card.value}
                     </span>
                     <span style={{
                       fontFamily: "'Inter', sans-serif", fontWeight: 400,
-                      fontSize: '0.62rem', color: card.color, marginTop: '0.2rem',
+                      fontSize: '0.9rem', color: card.color, marginTop: '0.2rem',
                       letterSpacing: '0.02em', opacity: 0.85,
                     }}>
                       {card.label}
@@ -454,19 +454,19 @@ export const UploadPage: React.FC = () => {
               {validationReport && validationReport.error_count > 0 && (
                 <div style={{
                   background: '#FDF6F4', borderRadius: '10px',
-                  border: '1px solid #D4A090', padding: '0.75rem 1rem',
+                  border: '1px solid #D4A090', padding: '1.2rem',
                   marginBottom: validationReport.warning_count > 0 ? '0.75rem' : '1.25rem',
                 }}>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 600,
-                    fontSize: '0.65rem', letterSpacing: '0.12em',
+                    fontSize: '0.85rem', letterSpacing: '0.12em',
                     textTransform: 'uppercase', color: '#A05A4A', margin: '0 0 0.5rem',
                   }}>
                     ERREURS
                   </p>
                   <div style={{
-                    maxHeight: validationReport.errors.length > 5 ? '140px' : 'none',
-                    overflowY: validationReport.errors.length > 5 ? 'auto' : 'visible',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
                   }}>
                     {validationReport.errors.map((err, i) => (
                       <div key={i} style={{
@@ -475,14 +475,14 @@ export const UploadPage: React.FC = () => {
                         borderBottom: i < validationReport.errors.length - 1 ? '1px solid rgba(212,160,144,0.3)' : 'none',
                       }}>
                         <span style={{
-                          fontFamily: "'Inter', sans-serif", fontWeight: 700,
-                          fontSize: '0.75rem', color: '#A05A4A', whiteSpace: 'nowrap', flexShrink: 0,
+                          fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                          fontSize: '0.95rem', color: '#A05A4A', whiteSpace: 'nowrap', flexShrink: 0,
                         }}>
                           L{err.line}
                         </span>
                         <span style={{
-                          fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                          fontSize: '0.75rem', color: 'var(--earth-dark)', lineHeight: 1.4,
+                          fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                          fontSize: '1rem', color: 'var(--earth-dark)', lineHeight: 1.4,
                         }}>
                           {err.message}
                         </span>
@@ -496,19 +496,19 @@ export const UploadPage: React.FC = () => {
               {validationReport && validationReport.warning_count > 0 && (
                 <div style={{
                   background: '#FBF8F0', borderRadius: '10px',
-                  border: '1px solid #D6C9AE', padding: '0.75rem 1rem',
+                  border: '1px solid #D6C9AE', padding: '1.2rem',
                   marginBottom: '1.25rem',
                 }}>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 600,
-                    fontSize: '0.65rem', letterSpacing: '0.12em',
+                    fontSize: '0.85rem', letterSpacing: '0.12em',
                     textTransform: 'uppercase', color: '#8B7A5C', margin: '0 0 0.5rem',
                   }}>
                     AVERTISSEMENTS
                   </p>
                   <div style={{
-                    maxHeight: validationReport.warnings.length > 5 ? '140px' : 'none',
-                    overflowY: validationReport.warnings.length > 5 ? 'auto' : 'visible',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
                   }}>
                     {validationReport.warnings.map((w, i) => (
                       <div key={i} style={{
@@ -517,14 +517,14 @@ export const UploadPage: React.FC = () => {
                         borderBottom: i < validationReport.warnings.length - 1 ? '1px solid rgba(214,201,174,0.3)' : 'none',
                       }}>
                         <span style={{
-                          fontFamily: "'Inter', sans-serif", fontWeight: 700,
-                          fontSize: '0.75rem', color: '#8B7A5C', whiteSpace: 'nowrap', flexShrink: 0,
+                          fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                          fontSize: '0.95rem', color: '#8B7A5C', whiteSpace: 'nowrap', flexShrink: 0,
                         }}>
                           L{w.line}
                         </span>
                         <span style={{
-                          fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                          fontSize: '0.75rem', color: 'var(--earth-dark)', lineHeight: 1.4,
+                          fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                          fontSize: '1rem', color: 'var(--earth-dark)', lineHeight: 1.4,
                         }}>
                           {w.message}
                         </span>
@@ -537,15 +537,15 @@ export const UploadPage: React.FC = () => {
               {/* Zone 4 — AI Analysis */}
               <div style={{
                 background: '#F5F3EF', borderRadius: '10px',
-                border: '1px solid #D6C9AE', padding: '0.75rem 1rem',
-                marginBottom: '1.25rem',
+                border: '1px solid #D6C9AE', padding: '1.2rem',
+                marginBottom: '1.25rem', width: '100%', boxSizing: 'border-box',
               }}>
                 <p style={{
-                  fontFamily: "'Inter', sans-serif", fontWeight: 600,
-                  fontSize: '0.65rem', letterSpacing: '0.12em',
-                  textTransform: 'uppercase', color: '#7A6B5A', margin: '0 0 0.5rem',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                  fontSize: '0.85rem', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#7A6B5A', margin: '0 0 1rem',
                 }}>
-                  ANALYSE IA
+                  🧠 ANALYSE IA{aiAnalysis ? ` (${(aiAnalysis.resume?.total_anomalies ?? 0) + (aiAnalysis.resume?.total_avertissements ?? 0)} résultats)` : ''}
                 </p>
                 {aiAnalysis && aiAnalysis.ia_available === false ? (
                   <p style={{
@@ -556,19 +556,20 @@ export const UploadPage: React.FC = () => {
                   </p>
                 ) : aiAnalysis && aiAnalysis.anomalies.length > 0 ? (
                   <div style={{
-                    maxHeight: aiAnalysis.anomalies.length > 5 ? '200px' : 'none',
-                    overflowY: aiAnalysis.anomalies.length > 5 ? 'auto' : 'visible',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    display: 'flex', flexDirection: 'column', gap: '1rem',
                   }}>
                     {aiAnalysis.anomalies.map((a, i) => (
                       <div key={i} style={{
-                        padding: '0.5rem 0',
-                        borderBottom: i < aiAnalysis.anomalies.length - 1 ? '1px solid rgba(214,201,174,0.3)' : 'none',
+                        background: 'white', borderRadius: '10px',
+                        border: '1px solid var(--earth-pale)', padding: '1rem',
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
                           <span style={{
-                            display: 'inline-block', padding: '0.15rem 0.45rem', borderRadius: '4px',
-                            fontFamily: "'Inter', sans-serif", fontWeight: 600,
-                            fontSize: '0.6rem', letterSpacing: '0.06em',
+                            display: 'inline-block', padding: '0.25rem 0.65rem', borderRadius: '5px',
+                            fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                            fontSize: '0.7rem', letterSpacing: '0.08em',
                             textTransform: 'uppercase',
                             background: a.type === 'ANOMALIE' ? '#F0E0DA' : '#F0EBE1',
                             color: a.type === 'ANOMALIE' ? '#A05A4A' : '#8B7A5C',
@@ -576,34 +577,40 @@ export const UploadPage: React.FC = () => {
                             {a.type === 'ANOMALIE' ? 'ANOMALIE' : 'AVERTISSEMENT'}
                           </span>
                           <span style={{
-                            fontFamily: "'Inter', sans-serif", fontWeight: 600,
-                            fontSize: '0.8rem', color: 'var(--earth-dark)',
+                            fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                            fontSize: '0.95rem', color: 'var(--earth-dark)',
                           }}>
                             {a.societe}
                           </span>
                         </div>
                         <p style={{
-                          fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                          fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4,
+                          fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                          fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5,
                           margin: 0,
                         }}>
                           {a.message}
                         </p>
                         {a.valeurs?.ecart_pourcentage != null && (
-                          <span style={{
-                            fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                            fontSize: '0.7rem', color: '#A05A4A', marginTop: '0.15rem', display: 'inline-block',
+                          <div style={{
+                            marginTop: '0.6rem', padding: '0.5rem 0.75rem',
+                            background: '#FDF6F4', borderRadius: '6px',
+                            display: 'inline-block',
                           }}>
-                            Écart : {a.valeurs.ecart_pourcentage}%
-                          </span>
+                            <span style={{
+                              fontFamily: "'Inter', sans-serif", fontWeight: 700,
+                              fontSize: '1rem', color: '#A05A4A',
+                            }}>
+                              Écart : {a.valeurs.ecart_pourcentage}%
+                            </span>
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <p style={{
-                    fontFamily: "'Inter', sans-serif", fontWeight: 400,
-                    fontSize: '0.8rem', color: '#5A7A5C', margin: 0,
+                    fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                    fontSize: '0.95rem', color: '#5A7A5C', textAlign: 'center', margin: 0,
                   }}>
                     ✓ Aucune anomalie détectée par l'analyse IA.
                   </p>
@@ -757,13 +764,13 @@ export const UploadPage: React.FC = () => {
                   </div>
                   <p style={{
                     fontFamily: "'Playfair Display', serif", fontWeight: 400,
-                    fontSize: '1.2rem', color: 'var(--earth-dark)', margin: 0,
+                    fontSize: '1.4rem', color: 'var(--earth-dark)', margin: 0,
                   }}>
                     Glissez votre fichier ici
                   </p>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                    fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem',
+                    fontSize: '1rem', color: 'var(--text-muted)', marginTop: '0.5rem',
                   }}>
                     ou cliquez pour parcourir
                   </p>
@@ -771,7 +778,7 @@ export const UploadPage: React.FC = () => {
                     marginTop: '1.5rem', background: 'var(--bg-secondary)',
                     borderRadius: '20px', padding: '0.4rem 1rem',
                     fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                    fontSize: '0.75rem', color: 'var(--text-muted)',
+                    fontSize: '0.9rem', color: 'var(--text-muted)',
                   }}>
                     CSV ou Excel uniquement
                   </div>
@@ -794,7 +801,7 @@ export const UploadPage: React.FC = () => {
       {/* ─── SESSION HISTORY ─── */}
       {uploadHistory.length > 0 && (
         <div style={{
-          padding: '2.5rem 8% 4rem', maxWidth: '48rem',
+          padding: '2.5rem 8% 4rem', maxWidth: '800px', margin: '0 auto',
         }}>
           <div style={{
             width: '100%', height: '1px', background: 'var(--earth-pale)', marginBottom: '1.5rem',
@@ -806,26 +813,24 @@ export const UploadPage: React.FC = () => {
           }}>
             HISTORIQUE DE SESSION ({uploadHistory.length})
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-            {uploadHistory.map((entry) => {
+
+          <div style={{
+            marginTop: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem',
+          }}>
+            {uploadHistory.map((entry, idx) => {
               const badge = badgeColors[entry.type] || badgeColors.ca;
               return (
-                <div
-                  key={entry.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '0.75rem 1rem', borderRadius: '8px',
-                    transition: 'background 0.2s',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
+                <div key={entry.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '1rem', borderRadius: '8px',
+                  border: '1px solid var(--earth-pale)', background: 'white',
+                }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                     <span style={{
-                      display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '4px',
+                      display: 'inline-block', padding: '0.25rem 0.7rem', borderRadius: '5px',
                       background: badge.bg, color: badge.color,
-                      fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                      fontSize: '0.7rem', letterSpacing: '0.05em', textTransform: 'uppercase',
+                      fontFamily: "'Inter', sans-serif", fontWeight: 600,
+                      fontSize: '0.75rem', letterSpacing: '0.05em', textTransform: 'uppercase',
                       whiteSpace: 'nowrap',
                     }}>
                       {typeLabels[entry.type] || entry.type}
@@ -833,7 +838,7 @@ export const UploadPage: React.FC = () => {
                     <div style={{ minWidth: 0 }}>
                       <p style={{
                         fontFamily: "'Inter', sans-serif", fontWeight: 500,
-                        fontSize: '0.88rem', color: 'var(--text-primary)', margin: 0,
+                        fontSize: '1rem', color: 'var(--text-primary)', margin: 0,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {entry.filename}
@@ -846,7 +851,7 @@ export const UploadPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                     {entry.fileData ? (
                     <button
                       onClick={() => {
@@ -874,14 +879,7 @@ export const UploadPage: React.FC = () => {
                       }}
                     >
                       ↓ Télécharger
-                    </button>                    ) : (
-                    <span style={{
-                      fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                      fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic',
-                    }}>
-                      Aperçu non disponible
-                    </span>
-                    )}
+                    </button>                    ) : null}
                     <button
                     onClick={() => removeHistoryEntry(entry.id)}
                     style={{
