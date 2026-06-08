@@ -1,0 +1,809 @@
+import { useState, useRef, useEffect } from 'react';
+import { useMsal } from '@azure/msal-react';
+import { useNavigate } from 'react-router-dom';
+import { ThinLine } from '../components/Common/ThinLine';
+import { BlobMain } from '../components/Common/BlobMain';
+import { BlobSecond } from '../components/Common/BlobSecond';
+import { DotsGrid } from '../components/Common/DotsGrid';
+import { FinanceIllustration } from '../components/Common/FinanceIllustration';
+import { logout } from '../services/authService';
+
+/* ─── MOCK DATA ─── */
+
+const FILIALES = [
+  'Adwiya', 'Agora Djerba', 'Argania', 'Cipharm', 'CME',
+  'Fatale', 'Fertipro', 'Ikel', 'Prochidia', 'Teriak',
+  'Ikonia', 'Medicis', 'Nerolia', 'Protis', 'STA',
+];
+
+const TYPES = ['ca', 'engagement', 'versement'] as const;
+const TYPE_LABELS: Record<string, string> = {
+  ca: "Chiffre d'Affaire", engagement: 'Engagement', versement: 'Versement',
+};
+
+const PERIODS = [
+  'Janvier 2026', 'Février 2026', 'Mars 2026', 'Avril 2026',
+  'Mai 2026', 'Juin 2026',
+];
+
+interface FilialeRow {
+  id: number;
+  societe: string;
+  type: string;
+  periode: string;
+  etat: 'valide' | 'en_attente' | 'non_soumis';
+  dateUpload: string;
+}
+
+const ETAT_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  valide: { label: '✓ Validé', bg: '#F0F4F0', color: '#5A7A5C' },
+  en_attente: { label: '◌ En attente', bg: '#F5EDE4', color: '#7A6152' },
+  non_soumis: { label: '✕ Non soumis', bg: '#FAF0EE', color: '#8B5A52' },
+};
+
+const generateMockData = (): FilialeRow[] => {
+  const rows: FilialeRow[] = [];
+  let id = 1;
+  const etats: FilialeRow['etat'][] = ['valide', 'en_attente', 'non_soumis'];
+  for (const societe of FILIALES) {
+    for (const type of TYPES) {
+      const idx = (FILIALES.indexOf(societe) * 3 + TYPES.indexOf(type)) % 3;
+      rows.push({
+        id: id++,
+        societe,
+        type,
+        periode: 'Juin 2026',
+        etat: etats[idx],
+        dateUpload: etats[idx] === 'non_soumis' ? '—' : '02/06/2026',
+      });
+    }
+  }
+  return rows;
+};
+
+const ALL_ROWS = generateMockData();
+
+/* ─── IA RULES ─── */
+
+const DEFAULT_RULES = {
+  ca_ecart_mm_alerte: 30,
+  ca_ecart_mm_anomalie: 50,
+  ca_ratio_annuel_alerte: 15,
+  ca_ratio_annuel_anomalie: 30,
+  engagement_montant_inhabituel: 3,
+  engagement_concentration: 80,
+  versement_montant_inhabituel: 3,
+  versement_ecart_mm_alerte: 30,
+  versement_ecart_mm_anomalie: 50,
+};
+
+const loadRules = () => {
+  try {
+    const raw = localStorage.getItem('ai_rules');
+    return raw ? { ...DEFAULT_RULES, ...JSON.parse(raw) } : DEFAULT_RULES;
+  } catch {
+    return DEFAULT_RULES;
+  }
+};
+
+const ROWS_PER_PAGE = 15;
+
+type UploadStatus = 'validated' | 'error' | 'pending';
+
+const mockUploads: Array<{
+  id: string; filename: string; company: string; type: string; date: string; status: UploadStatus;
+}> = [
+  { id: '1', filename: 'CA_Janvier_2025.csv', company: 'CompanyA', type: 'CA', date: '28 mai 2025', status: 'validated' },
+  { id: '2', filename: 'Engagement_Jan.csv',  company: 'CompanyA', type: 'Engagement', date: '27 mai 2025', status: 'validated' },
+  { id: '3', filename: 'CA_Fevrier_2025.csv', company: 'CompanyB', type: 'CA', date: '26 mai 2025', status: 'error' },
+  { id: '4', filename: 'Engagement_Fev.csv',  company: 'CompanyB', type: 'Engagement', date: '25 mai 2025', status: 'pending' },
+];
+
+const mockEvents: Array<{
+  type: string; title: string; company: string; date: string; detail: string | null;
+}> = [
+  { type: 'success', title: 'Fichier CA validé', company: 'CompanyA', date: '28 mai 2025 · 14h32', detail: null },
+  { type: 'error',   title: 'Erreur détectée dans Engagement', company: 'CompanyB', date: '27 mai 2025 · 09h15', detail: 'LOCAL + Export ≠ MontantCA ligne 7' },
+  { type: 'success', title: 'Rapport PPTX généré', company: 'CompanyA', date: '26 mai 2025 · 16h45', detail: null },
+  { type: 'success', title: 'Fichier Engagement validé', company: 'CompanyA', date: '25 mai 2025 · 11h20', detail: null },
+];
+
+const statusBadge = (status: UploadStatus) => {
+  const styles: Record<UploadStatus, { bg: string; color: string; label: string }> = {
+    validated: { bg: '#F0F4F0', color: '#5A7A5C', label: 'Validé' },
+    error:     { bg: '#FAF0EE', color: '#8B5A52', label: 'Erreur' },
+    pending:   { bg: 'var(--bg-secondary)', color: 'var(--text-muted)', label: 'En attente' },
+  };
+  const s = styles[status];
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+      padding: '0.3rem 0.8rem', background: s.bg, color: s.color,
+      borderRadius: '20px', fontSize: '0.78rem',
+      fontFamily: "'Inter', sans-serif", fontWeight: 500,
+    }}>
+      {status === 'validated' ? '✓' : status === 'error' ? '✕' : '◌'} {s.label}
+    </span>
+  );
+};
+
+/* ─── COMPONENT ─── */
+
+const navSuperviseurItems = [
+  { key: 'home', label: 'Accueil' },
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'reports', label: 'Rapports' },
+];
+
+export const SuperviseurPage: React.FC = () => {
+  const [view, setView] = useState<'login' | 'home' | 'dashboard' | 'reports'>('login');
+  const { accounts } = useMsal();
+  const account = accounts[0];
+  const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const parts = name.split(' ');
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/login';
+  };
+
+  const handleNavClick = (key: string) => {
+    if (key === 'upload') {
+      navigate('/upload');
+    } else {
+      setView(key as 'home' | 'dashboard' | 'reports');
+    }
+  };
+
+  const navbar = (
+    <nav
+      style={{
+        position: 'fixed', top: 0, width: '100%', zIndex: 100,
+        padding: '1.5rem 8%',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: scrolled ? 'rgba(250,247,242,0.95)' : 'transparent',
+        backdropFilter: scrolled ? 'blur(10px)' : 'none',
+        borderBottom: scrolled ? '1px solid var(--earth-pale)' : '1px solid transparent',
+        transition: 'all 0.3s ease',
+      }}
+    >
+      <span style={{
+        fontFamily: "'Playfair Display', serif", fontWeight: 500,
+        fontSize: '1.3rem', color: 'var(--earth-dark)', letterSpacing: '0.02em',
+      }}>
+        Finance.
+      </span>
+
+      <div style={{ display: 'flex', gap: '2rem' }}>
+        {navSuperviseurItems.map((item) => {
+          const isActive = item.key === 'upload' ? false : view === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => handleNavClick(item.key)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                fontSize: '0.9rem',
+                color: isActive ? 'var(--earth-dark)' : 'var(--text-secondary)',
+                borderBottom: isActive ? '1px solid var(--earth-dark)' : '1px solid transparent',
+                paddingBottom: '2px',
+                transition: 'all 0.3s ease',
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        onClick={handleLogout}
+        title="Déconnexion"
+        style={{
+          width: '38px', height: '38px', borderRadius: '50%',
+          background: 'var(--earth-dark)', color: 'white',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Inter', sans-serif", fontWeight: 500,
+          fontSize: '0.8rem', cursor: 'pointer',
+          transition: 'background 0.3s ease',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--earth-dark)'}
+      >
+        {getInitials(account?.name || account?.username || '?')}
+      </div>
+    </nav>
+  );
+
+  const today = new Date().toLocaleDateString('fr-FR', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+
+  const stats = [
+    { value: '12', label: 'Total uploads' },
+    { value: '9',  label: 'Validés' },
+    { value: '3',  label: 'En attente' },
+  ];
+
+  /* ─── LOGIN VIEW ─── */
+  if (view === 'login') {
+    return (
+      <div className="split-screen" style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
+        <div className="split-left" style={{
+          flex: '0 0 55%', background: 'var(--bg-secondary)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', overflow: 'hidden', padding: '4rem',
+        }}>
+          <BlobMain />
+          <BlobSecond />
+          <DotsGrid />
+          <FinanceIllustration />
+        </div>
+        <div className="split-right" style={{
+          flex: '0 0 45%', background: 'var(--bg-primary)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'flex-start', justifyContent: 'center',
+          padding: '4rem 5rem',
+        }}>
+          <span style={{
+            fontFamily: "'Playfair Display', serif", fontWeight: 400,
+            fontSize: '1.2rem', color: 'var(--earth-mid)', letterSpacing: '0.02em',
+          }}>Finance.</span>
+          <ThinLine />
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            fontSize: '0.72rem', letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '0.5rem',
+          }}>BIENVENUE</p>
+          <h1 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 'clamp(2.5rem, 5vw, 4rem)', fontWeight: 700,
+            lineHeight: 1.1, color: 'var(--earth-dark)', marginTop: '0.5rem',
+          }}>Connectez-vous.</h1>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 300,
+            fontSize: '1.05rem', lineHeight: 1.85,
+            color: 'var(--text-secondary)', marginTop: '1rem', maxWidth: '28rem',
+          }}>Accédez à votre espace de supervision.</p>
+          <div style={{ height: '2.5rem' }} />
+          <button
+            onClick={() => setView('home')}
+            style={{
+              width: '100%', padding: '1rem 2rem',
+              background: 'var(--earth-dark)', border: 'none', borderRadius: '6px',
+              fontFamily: "'Inter', sans-serif", fontWeight: 500,
+              fontSize: '0.95rem', color: 'white', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: '0.75rem', letterSpacing: '0.02em',
+              transition: 'background 0.3s ease, transform 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--earth-dark)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <svg width="18" height="18" viewBox="0 0 21 21">
+              <rect x="0" y="0" width="9" height="9" fill="#f25022"/>
+              <rect x="12" y="0" width="9" height="9" fill="#7fba00"/>
+              <rect x="0" y="12" width="9" height="9" fill="#00a4ef"/>
+              <rect x="12" y="12" width="9" height="9" fill="#ffb900"/>
+            </svg>
+            Se connecter avec Microsoft
+          </button>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 300,
+            fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '1rem',
+          }}>Plateforme réservée aux superviseurs du groupe.</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── HOME VIEW ─── */
+  if (view === 'home') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+        {navbar}
+        <main style={{ paddingTop: '88px' }}>
+          {/* HERO */}
+          <div style={{
+            minHeight: 'calc(100vh - 88px)',
+            display: 'flex', alignItems: 'center',
+            padding: '0 8%', position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{ flex: '0 0 60%', position: 'relative', zIndex: 2 }}>
+              <p style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                fontSize: '0.72rem', letterSpacing: '0.18em',
+                textTransform: 'uppercase', color: 'var(--text-muted)',
+              }}>
+                TABLEAU DE BORD
+              </p>
+              <ThinLine />
+              <h1 style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+                fontWeight: 700, lineHeight: 1.1, color: 'var(--earth-dark)',
+              }}>
+                Bonjour{account?.name ? `, ${account.name.split(' ')[0]}` : ''}.
+              </h1>
+              <p style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                fontSize: '0.9rem', color: 'var(--text-muted)',
+                marginTop: '0.5rem', textTransform: 'capitalize',
+              }}>
+                {today}
+              </p>
+              <div style={{ margin: '1.5rem 0' }}><ThinLine /></div>
+              <div style={{ display: 'flex', gap: '1.5rem', maxWidth: '36rem' }}>
+                {stats.map((stat) => (
+                  <div key={stat.label} style={{
+                    flex: 1, minWidth: 0, background: 'white',
+                    border: '1px solid var(--earth-pale)',
+                    borderRadius: '12px', padding: '1.5rem 1.8rem',
+                    boxShadow: '0 2px 12px rgba(92,74,58,0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s, border-color 0.2s',
+                    cursor: 'default',
+                  }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-3px)';
+                      e.currentTarget.style.boxShadow = '0 8px 24px rgba(92,74,58,0.1)';
+                      e.currentTarget.style.borderColor = 'var(--earth-light)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 2px 12px rgba(92,74,58,0.05)';
+                      e.currentTarget.style.borderColor = 'var(--earth-pale)';
+                    }}
+                  >
+                    <p style={{
+                      fontFamily: "'Playfair Display', serif", fontSize: '2.8rem',
+                      fontWeight: 700, color: 'var(--earth-dark)', lineHeight: 1, margin: 0,
+                    }}>{stat.value}</p>
+                    <div style={{
+                      width: '100%', height: '1px', background: 'var(--earth-pale)',
+                      margin: '0.8rem 0',
+                    }} />
+                    <p style={{
+                      fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                      fontSize: '0.78rem', color: 'var(--text-muted)',
+                      letterSpacing: '0.05em', margin: 0,
+                    }}>{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+              <div style={{ height: '2.5rem' }} />
+              <button
+                onClick={() => setView('dashboard')}
+                style={{
+                  padding: '0.9rem 2.2rem', background: 'var(--earth-dark)',
+                  color: 'white', border: 'none', borderRadius: '6px',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                  fontSize: '0.95rem', cursor: 'pointer', letterSpacing: '0.03em',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--accent)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(92,74,58,0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--earth-dark)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                Voir statistiques &rarr;
+              </button>
+            </div>
+            <div style={{
+              flex: '0 0 40%', position: 'relative', height: '100%', minHeight: '400px',
+            }}>
+              <BlobMain />
+              <DotsGrid />
+            </div>
+          </div>
+
+        </main>
+      </div>
+    );
+  }
+
+  /* ─── REPORTS VIEW ─── */
+  if (view === 'reports') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+        {navbar}
+        <main style={{ paddingTop: '88px' }}>
+          <div style={{
+            minHeight: 'calc(100vh - 88px)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            padding: '0 8%',
+            maxWidth: '48rem',
+          }}>
+            <p style={{
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 500,
+              fontSize: '0.72rem',
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+            }}>
+              RAPPORTS
+            </p>
+
+            <ThinLine />
+
+            <h1 style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+              fontWeight: 700,
+              lineHeight: 1.1,
+              color: 'var(--earth-dark)',
+            }}>
+              Historique des rapports.
+            </h1>
+
+            <p style={{
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 300,
+              fontSize: '1.05rem',
+              lineHeight: 1.85,
+              color: 'var(--text-secondary)',
+              marginTop: '0.75rem',
+            }}>
+              Consultez et téléchargez vos rapports générés.
+            </p>
+
+            <div style={{ height: '3rem' }} />
+
+            <div style={{
+              background: 'white',
+              border: '1px solid var(--earth-pale)',
+              borderRadius: '16px',
+              padding: '4rem 2rem',
+              textAlign: 'center',
+            }}>
+              <p style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: '3rem',
+                color: 'var(--earth-pale)',
+                margin: 0,
+              }}>
+                &mdash;
+              </p>
+              <h3 style={{
+                fontFamily: "'Playfair Display', serif",
+                fontWeight: 600,
+                fontSize: '1.2rem',
+                color: 'var(--earth-dark)',
+                marginTop: '1rem',
+              }}>
+                Aucun rapport pour l'instant
+              </h3>
+              <p style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 300,
+                fontSize: '0.85rem',
+                color: 'var(--text-muted)',
+                marginTop: '0.5rem',
+              }}>
+                Les rapports apparaîtront ici après validation des données
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  /* ─── DASHBOARD VIEW (tableau de suivi) ─── */
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+      {navbar}
+      <main style={{ paddingTop: 'calc(88px + 2rem)' }}>
+        <DashboardContent />
+      </main>
+    </div>
+  );
+};
+
+/* ─── DASHBOARD CONTENT ─── */
+
+const DashboardContent: React.FC = () => {
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [rules, setRules] = useState(loadRules);
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleSave = () => {
+    localStorage.setItem('ai_rules', JSON.stringify(rules));
+    setSaved(true);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), 3000);
+  };
+
+  const setRule = (key: string, val: string) => {
+    const num = parseInt(val, 10);
+    if (!isNaN(num)) setRules((prev: Record<string, number>) => ({ ...prev, [key]: num }));
+  };
+
+  const [filterSociete, setFilterSociete] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [filterPeriode, setFilterPeriode] = useState('all');
+  const [page, setPage] = useState(1);
+
+  const filtered = ALL_ROWS.filter(r =>
+    (filterSociete === 'all' || r.societe === filterSociete) &&
+    (filterType === 'all' || r.type === filterType) &&
+    (filterPeriode === 'all' || r.periode === filterPeriode)
+  );
+
+  const totalPages = Math.ceil(filtered.length / ROWS_PER_PAGE);
+  const paged = filtered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+
+  const [rappelSent, setRappelSent] = useState<Record<number, boolean>>({});
+
+  const sendRappel = (id: number) => {
+    setRappelSent(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => setRappelSent(prev => ({ ...prev, [id]: false })), 3000);
+  };
+
+  return (
+    <div style={{ padding: '0 8% 4rem', maxWidth: '1100px', margin: '0 auto' }}>
+      {/* RULES PANEL */}
+      <button
+        onClick={() => setPanelOpen(!panelOpen)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          background: 'none', border: '1px solid var(--earth-pale)',
+          borderRadius: '8px', padding: '0.7rem 1.2rem',
+          fontFamily: "'Inter', sans-serif", fontWeight: 500,
+          fontSize: '0.85rem', color: 'var(--earth-mid)',
+          cursor: 'pointer', transition: 'all 0.2s', width: '100%',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--earth-dark)'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--earth-pale)'; e.currentTarget.style.color = 'var(--earth-mid)'; }}
+      >
+        <span style={{ fontSize: '1.1rem' }}>⚙️</span>
+        Configurer les règles IA
+        <span style={{ marginLeft: 'auto', transition: 'transform 0.3s', transform: panelOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+      </button>
+
+      {panelOpen && (
+        <div style={{
+          marginTop: '0.8rem', padding: '1.5rem 1.8rem',
+          border: '1px solid var(--earth-pale)', borderRadius: '10px', background: 'white',
+        }}>
+          <SectionTitle>Chiffre d'Affaire</SectionTitle>
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
+            <FieldGroup label="Écart M vs M-1">
+              <NumField value={rules.ca_ecart_mm_alerte} onChange={v => setRule('ca_ecart_mm_alerte', v)} suffix="% Avertissement" />
+              <NumField value={rules.ca_ecart_mm_anomalie} onChange={v => setRule('ca_ecart_mm_anomalie', v)} suffix="% Anomalie" />
+            </FieldGroup>
+            <FieldGroup label="Ratio année/année">
+              <NumField value={rules.ca_ratio_annuel_alerte} onChange={v => setRule('ca_ratio_annuel_alerte', v)} suffix="% Avertissement" />
+              <NumField value={rules.ca_ratio_annuel_anomalie} onChange={v => setRule('ca_ratio_annuel_anomalie', v)} suffix="% Anomalie" />
+            </FieldGroup>
+          </div>
+          <SectionTitle>Engagement</SectionTitle>
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1.2rem' }}>
+            <FieldGroup label="Montant inhabituel">
+              <NumField value={rules.engagement_montant_inhabituel} onChange={v => setRule('engagement_montant_inhabituel', v)} suffix="x la moyenne" />
+            </FieldGroup>
+            <FieldGroup label="Concentration bancaire">
+              <NumField value={rules.engagement_concentration} onChange={v => setRule('engagement_concentration', v)} suffix="%" />
+            </FieldGroup>
+          </div>
+          <SectionTitle>Versement</SectionTitle>
+          <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+            <FieldGroup label="Montant inhabituel">
+              <NumField value={rules.versement_montant_inhabituel} onChange={v => setRule('versement_montant_inhabituel', v)} suffix="x la moyenne" />
+            </FieldGroup>
+            <FieldGroup label="Écart M vs M-1">
+              <NumField value={rules.versement_ecart_mm_alerte} onChange={v => setRule('versement_ecart_mm_alerte', v)} suffix="% Avertissement" />
+              <NumField value={rules.versement_ecart_mm_anomalie} onChange={v => setRule('versement_ecart_mm_anomalie', v)} suffix="% Anomalie" />
+            </FieldGroup>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '0.6rem 1.5rem', background: 'var(--earth-dark)',
+                border: 'none', borderRadius: '6px',
+                fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                fontSize: '0.85rem', color: 'white', cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--earth-dark)'}
+            >
+              Sauvegarder les règles
+            </button>
+            {saved && (
+              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '0.85rem', color: '#5A7A5C' }}>
+                ✓ Règles sauvegardées
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ThinLine />
+
+      <p style={{
+        fontFamily: "'Inter', sans-serif", fontWeight: 500,
+        fontSize: '0.72rem', letterSpacing: '0.18em',
+        textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '1rem',
+      }}>
+        SUIVI DES FILIALES
+      </p>
+
+      <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '1.2rem' }}>
+        <FilterSelect value={filterSociete} onChange={v => { setFilterSociete(v); setPage(1); }}>
+          <option value="all">Toutes les sociétés</option>
+          {FILIALES.map(s => <option key={s} value={s}>{s}</option>)}
+        </FilterSelect>
+        <FilterSelect value={filterType} onChange={v => { setFilterType(v); setPage(1); }}>
+          <option value="all">Tous les types</option>
+          {TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
+        </FilterSelect>
+        <FilterSelect value={filterPeriode} onChange={v => { setFilterPeriode(v); setPage(1); }}>
+          <option value="all">Toutes les périodes</option>
+          {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+        </FilterSelect>
+      </div>
+
+      <div style={{
+        border: '1px solid var(--earth-pale)', borderRadius: '12px', overflow: 'hidden', background: 'white',
+      }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-secondary)' }}>
+              {['Société', 'Type de fichier', 'Période', 'État', "Date d'upload", 'Rappel'].map(h => (
+                <th key={h} style={{
+                  fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                  fontSize: '0.75rem', letterSpacing: '0.1em',
+                  textTransform: 'uppercase', color: 'var(--text-secondary)',
+                  padding: '0.8rem 1rem', textAlign: 'left', whiteSpace: 'nowrap',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((row, idx) => {
+              const etat = ETAT_CONFIG[row.etat];
+              const isEven = idx % 2 === 0;
+              return (
+                <tr key={row.id}
+                  style={{ background: isEven ? 'white' : 'rgba(250,247,242,0.4)', transition: 'background 0.15s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = isEven ? 'white' : 'rgba(250,247,242,0.4)'}
+                >
+                  <td style={tdCell}>{row.societe}</td>
+                  <td style={tdCell}>{TYPE_LABELS[row.type]}</td>
+                  <td style={tdCell}>{row.periode}</td>
+                  <td style={tdCell}>
+                    <span style={{
+                      display: 'inline-block', padding: '0.25rem 0.7rem', borderRadius: '5px',
+                      background: etat.bg, color: etat.color,
+                      fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '0.75rem',
+                    }}>{etat.label}</span>
+                  </td>
+                  <td style={tdCell}>{row.dateUpload}</td>
+                  <td style={tdCell}>
+                    {row.etat !== 'valide' ? (
+                      rappelSent[row.id] ? (
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, fontSize: '0.78rem', color: '#5A7A5C' }}>
+                          ✓ Rappel envoyé
+                        </span>
+                      ) : (
+                        <button onClick={() => sendRappel(row.id)} style={{
+                          background: 'transparent', border: '1px solid var(--earth-pale)',
+                          borderRadius: '5px', padding: '0.3rem 0.8rem',
+                          fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                          fontSize: '0.75rem', color: 'var(--earth-mid)',
+                          cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--earth-dark)'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--earth-pale)'; e.currentTarget.style.color = 'var(--earth-mid)'; }}
+                        >Envoyer rappel</button>
+                      )
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.8rem', marginTop: '1rem' }}>
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{
+            padding: '0.4rem 1.2rem', borderRadius: '5px',
+            border: '1px solid var(--earth-pale)', background: 'white',
+            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            fontSize: '0.8rem', color: page === 1 ? 'var(--text-muted)' : 'var(--earth-mid)',
+            cursor: page === 1 ? 'default' : 'pointer', transition: 'all 0.2s',
+          }}>← Précédent</button>
+          <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Page {page} sur {totalPages}
+          </span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{
+            padding: '0.4rem 1.2rem', borderRadius: '5px',
+            border: '1px solid var(--earth-pale)', background: 'white',
+            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            fontSize: '0.8rem', color: page === totalPages ? 'var(--text-muted)' : 'var(--earth-mid)',
+            cursor: page === totalPages ? 'default' : 'pointer', transition: 'all 0.2s',
+          }}>Suivant →</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── Helpers ─── */
+
+const tdCell: React.CSSProperties = {
+  fontFamily: "'Inter', sans-serif", fontWeight: 400,
+  fontSize: '0.85rem', color: 'var(--text-primary)',
+  padding: '0.7rem 1rem', borderBottom: '1px solid var(--earth-pale)',
+};
+
+const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p style={{
+    fontFamily: "'Inter', sans-serif", fontWeight: 500,
+    fontSize: '0.8rem', letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: 'var(--earth-mid)',
+    margin: '0 0 0.5rem',
+  }}>{children}</p>
+);
+
+const FieldGroup: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div>
+    <p style={{
+      fontFamily: "'Inter', sans-serif", fontWeight: 400,
+      fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0 0 0.4rem',
+    }}>{label}</p>
+    <div style={{ display: 'flex', gap: '0.8rem' }}>{children}</div>
+  </div>
+);
+
+const NumField: React.FC<{ value: number; onChange: (v: string) => void; suffix: string }> = ({ value, onChange, suffix }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+    <input type="number" value={value} onChange={e => onChange(e.target.value)} style={{
+      width: '55px', padding: '0.35rem 0.5rem',
+      border: '1px solid var(--earth-pale)', borderRadius: '5px',
+      fontFamily: "'Inter', sans-serif", fontWeight: 500,
+      fontSize: '0.85rem', color: 'var(--text-primary)',
+      background: 'white', outline: 'none', textAlign: 'center',
+    }} />
+    <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{suffix}</span>
+  </div>
+);
+
+const FilterSelect: React.FC<{ value: string; onChange: (v: string) => void; children: React.ReactNode }> = ({ value, onChange, children }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} style={{
+    padding: '0.45rem 1rem', borderRadius: '6px',
+    border: '1px solid var(--earth-pale)', background: 'white',
+    fontFamily: "'Inter', sans-serif", fontWeight: 400,
+    fontSize: '0.8rem', color: 'var(--text-primary)',
+    cursor: 'pointer', outline: 'none', flex: 1, minWidth: 0,
+  }}>{children}</select>
+);
