@@ -1,4 +1,5 @@
-import { Navigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { LoginButton } from '../components/Auth/LoginButton';
 import { BlobMain } from '../components/Common/BlobMain';
@@ -6,14 +7,44 @@ import { BlobSecond } from '../components/Common/BlobSecond';
 import { DotsGrid } from '../components/Common/DotsGrid';
 import { ThinLine } from '../components/Common/ThinLine';
 import { FinanceIllustration } from '../components/Common/FinanceIllustration';
+import { loginWithTestAccount, getTestUser } from '../services/authService';
+
+const IS_DEV = import.meta.env.VITE_ENVIRONMENT === 'development';
 
 export const LoginPage: React.FC = () => {
   const { accounts } = useMsal();
   const isAuthenticated = accounts.length > 0;
+  const navigate = useNavigate();
 
-  if (isAuthenticated) {
+  const testUser = getTestUser();
+  if (testUser || isAuthenticated) {
+    const user = testUser;
+    if (user?.role === 'SuperieurHierarchique') return <Navigate to="/superieur" replace />;
+    if (user?.role === 'Superviseur') return <Navigate to="/superviseur" replace />;
     return <Navigate to="/dashboard" replace />;
   }
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleTestLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await loginWithTestAccount(email, password);
+      const role = data.user.role;
+      if (role === 'SuperieurHierarchique') navigate('/superieur');
+      else if (role === 'Superviseur') navigate('/superviseur');
+      else navigate('/dashboard');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Identifiants incorrects');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="split-screen" style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
@@ -104,6 +135,89 @@ export const LoginPage: React.FC = () => {
         }}>
           Plateforme réservée aux membres du groupe.
         </p>
+
+        {IS_DEV && (
+          <>
+            <div style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
+              marginTop: '1.5rem',
+            }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--earth-pale)' }} />
+              <span style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+              }}>
+                ou (mode test)
+              </span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--earth-pale)' }} />
+            </div>
+
+            <form onSubmit={handleTestLogin} style={{ width: '100%', marginTop: '1rem' }}>
+              <p style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.5rem',
+                textTransform: 'uppercase', letterSpacing: '0.12em',
+              }}>MODE TEST</p>
+              <input
+                type="text"
+                placeholder="user@test.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={{
+                  width: '100%', padding: '0.7rem 0.9rem', marginBottom: '0.5rem',
+                  border: '1px solid var(--earth-pale)', borderRadius: '6px',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                  fontSize: '0.85rem', color: 'var(--text-primary)',
+                  background: 'white', outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              <input
+                type="password"
+                placeholder="••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                style={{
+                  width: '100%', padding: '0.7rem 0.9rem', marginBottom: '0.5rem',
+                  border: '1px solid var(--earth-pale)', borderRadius: '6px',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                  fontSize: '0.85rem', color: 'var(--text-primary)',
+                  background: 'white', outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              {error && (
+                <p style={{
+                  fontFamily: "'Inter', sans-serif", fontSize: '0.78rem',
+                  color: '#C4826A', marginBottom: '0.5rem',
+                }}>{error}</p>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: '100%', padding: '0.7rem',
+                  background: 'transparent', border: '1px solid var(--earth-mid)',
+                  borderRadius: '6px',
+                  fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                  fontSize: '0.85rem', color: 'var(--earth-mid)',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  opacity: loading ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) => { if (!loading) { e.currentTarget.style.background = 'var(--bg-secondary)'; }}}
+                onMouseLeave={(e) => { if (!loading) { e.currentTarget.style.background = 'transparent'; }}}
+              >
+                {loading ? 'Connexion...' : 'Se connecter (test)'}
+              </button>
+
+              <div style={{ marginTop: '0.75rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: "'Inter', sans-serif", fontWeight: 300, lineHeight: 1.6 }}>
+                <p style={{ margin: 0 }}>Comptes disponibles:</p>
+                <p style={{ margin: '0.1rem 0' }}>user@test.com / user123</p>
+                <p style={{ margin: '0.1rem 0' }}>superieur@test.com / sup123</p>
+                <p style={{ margin: '0.1rem 0' }}>superviseur@test.com / admin123</p>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

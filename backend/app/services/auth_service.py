@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 import httpx
 from jose import jwt, JWTError
 from fastapi import HTTPException, status
@@ -7,6 +8,81 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+TEST_USERS = {
+    "user@test.com": {
+        "password": "user123",
+        "role": "UserSimple",
+        "name": "Utilisateur Simple",
+        "companies": ["CompanyA"],
+    },
+    "superieur@test.com": {
+        "password": "sup123",
+        "role": "SuperieurHierarchique",
+        "name": "Supérieur Hiérarchique",
+        "companies": ["Adwiya", "Argania", "Cipharm", "Fertipro", "Ikel"],
+    },
+    "superviseur@test.com": {
+        "password": "admin123",
+        "role": "Superviseur",
+        "name": "Superviseur",
+        "companies": ["ALL"],
+    },
+}
+
+
+def authenticate_test_user(email: str, password: str) -> dict:
+    """
+    Valide les credentials d'un compte de test et retourne les infos utilisateur.
+
+    Args:
+        email: Email du compte test
+        password: Mot de passe en clair
+
+    Returns:
+        Dictionnaire contenant: user_id, email, role, name, companies
+
+    Raises:
+        HTTPException 401: Si email ou password incorrect
+    """
+    user = TEST_USERS.get(email)
+    if not user or user["password"] != password:
+        logger.warning("Tentative de connexion test échouée pour %s", email)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Identifiants incorrects",
+        )
+
+    logger.info("Connexion test réussie pour %s (rôle: %s)", email, user["role"])
+    return {
+        "user_id": email.replace("@", "_"),
+        "email": email,
+        "role": user["role"],
+        "name": user["name"],
+        "companies": user["companies"],
+    }
+
+
+def create_test_token(user_info: dict) -> str:
+    """
+    Génère un token JWT pour un utilisateur test.
+
+    Args:
+        user_info: Dictionnaire avec les infos utilisateur
+
+    Returns:
+        Token JWT signé
+    """
+    payload = {
+        "sub": user_info["user_id"],
+        "email": user_info["email"],
+        "role": user_info["role"],
+        "name": user_info["name"],
+        "companies": user_info["companies"],
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=8),
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm="HS256")
 
 AZURE_JWKS_URL = (
     f"https://login.microsoftonline.com/{settings.azure_tenant_id}"

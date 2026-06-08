@@ -1,10 +1,17 @@
 import logging
-from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.middleware.auth_middleware import get_current_user
+from app.services.auth_service import authenticate_test_user, create_test_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class LoginTestRequest(BaseModel):
+    email: str
+    password: str
 
 
 @router.get("/me")
@@ -33,3 +40,19 @@ def logout():
     """
     logger.info("Utilisateur déconnecté")
     return {"message": "Déconnexion réussie"}
+
+
+@router.post("/login-test")
+def login_test(body: LoginTestRequest):
+    """
+    Authentifie un utilisateur via les comptes de test hardcodés.
+
+    Retourne un token JWT et les informations utilisateur si succès.
+    """
+    user_info = authenticate_test_user(body.email, body.password)
+    token = create_test_token(user_info)
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": user_info,
+    }
