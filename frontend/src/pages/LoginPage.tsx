@@ -82,7 +82,7 @@ export const LoginPage: React.FC = () => {
           color: 'var(--earth-mid)',
           letterSpacing: '0.02em',
         }}>
-          Finance.
+          Groupe Kilani
         </span>
 
         <ThinLine />
@@ -124,35 +124,9 @@ export const LoginPage: React.FC = () => {
 
         <div style={{ height: '2.5rem' }} />
 
-        <LoginButton />
-
-        <p style={{
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 300,
-          fontSize: '0.8rem',
-          color: 'var(--text-muted)',
-          marginTop: '1rem',
-        }}>
-          Plateforme réservée aux membres du groupe.
-        </p>
-
         {IS_DEV && (
           <>
-            <div style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
-              marginTop: '1.5rem',
-            }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--earth-pale)' }} />
-              <span style={{
-                fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap',
-              }}>
-                ou (mode test)
-              </span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--earth-pale)' }} />
-            </div>
-
-            <form onSubmit={handleTestLogin} style={{ width: '100%', marginTop: '1rem' }}>
+            <form onSubmit={handleTestLogin} style={{ width: '100%' }}>
               <p style={{
                 fontFamily: "'Inter', sans-serif", fontWeight: 400,
                 fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.5rem',
@@ -216,8 +190,34 @@ export const LoginPage: React.FC = () => {
                 <p style={{ margin: '0.1rem 0' }}>superviseur@test.com / admin123</p>
               </div>
             </form>
+
+            <div style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
+              marginTop: '1.5rem',
+            }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--earth-pale)' }} />
+              <span style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+              }}>
+                ou
+              </span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--earth-pale)' }} />
+            </div>
           </>
         )}
+
+        <LoginButton />
+
+        <p style={{
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 300,
+          fontSize: '0.8rem',
+          color: 'var(--text-muted)',
+          marginTop: '1rem',
+        }}>
+          Plateforme réservée aux membres du groupe.
+        </p>
       </div>
     </div>
   );

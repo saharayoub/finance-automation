@@ -6,15 +6,25 @@ import { BlobSecond } from '../components/Common/BlobSecond';
 import { DotsGrid } from '../components/Common/DotsGrid';
 import api from '../services/api';
 
+const FILIALES = [
+  "Adwiya", "Agora Djerba", "Argania", "Cipharm", "CME",
+  "Fatale", "Fertipro", "Ikel", "Prochidia", "Teriak",
+  "Ikonia", "Medicis", "Nerolia", "Protis", "STA",
+  "RLK", "KH", "KHP", "Kilani Holding", "Kipropha", "KTP"
+];
+
 const typeLabels: Record<string, string> = { ca: "Chiffre d'Affaire", engagement: 'Engagement', versement: 'Versement' };
 
 export const UploadPage: React.FC = () => {
+  const [selectedFiliale, setSelectedFiliale] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<'ca' | 'engagement' | 'versement' | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [csvError, setCsvError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   interface UploadHistoryEntry {
@@ -84,15 +94,49 @@ export const UploadPage: React.FC = () => {
     setCsvError(null);
     setUploadError(null);
     setUploadStatus('idle');
+    setSubmissionStatus('idle');
+    setSubmissionError(null);
     if (resetType) setSelectedType(null);
   };
 
-  const goBack = () => {
+  const goBackToFiliales = () => {
+    setSelectedFiliale(null);
     setSelectedType(null);
     setFile(null);
     setCsvError(null);
     setUploadError(null);
     setUploadStatus('idle');
+  };
+
+  const goBackToTypes = () => {
+    setSelectedType(null);
+    setFile(null);
+    setCsvError(null);
+    setUploadError(null);
+    setUploadStatus('idle');
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!file || !selectedType || !selectedFiliale) return;
+    setSubmissionStatus('sending');
+    setSubmissionError(null);
+    try {
+      const testUser = JSON.parse(sessionStorage.getItem('test_user') || '{}');
+      const periode = new Date().toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
+      const typeMap: Record<string, string> = { ca: 'CA', engagement: 'Engagement', versement: 'Versement' };
+      await api.post('/api/submissions', {
+        filiale: selectedFiliale,
+        type: typeMap[selectedType],
+        periode,
+        filename: file.name,
+        uploaded_by: testUser?.email || '',
+        validation_result: { validation: validationReport, ai_analysis: aiAnalysis },
+      });
+      setSubmissionStatus('sent');
+    } catch {
+      setSubmissionStatus('error');
+      setSubmissionError("Erreur lors de l'envoi. Veuillez réessayer.");
+    }
   };
 
   interface ValidationReport {
@@ -186,7 +230,95 @@ export const UploadPage: React.FC = () => {
     { value: 'versement' as const, title: 'Versement', description: 'Versements et transactions bancaires' },
   ];
 
-  // ─── ÉTAPE 1 : Sélection du type ───
+  const step = selectedFiliale === null ? 1 : selectedType === null ? 2 : 3;
+
+  const StepIndicator = () => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '0',
+      fontFamily: "'Inter', sans-serif", fontSize: '0.78rem', fontWeight: 500,
+      marginBottom: '1.5rem',
+    }}>
+      <span style={{ color: step >= 1 ? 'var(--earth-dark)' : 'var(--text-muted)' }}>
+        {step > 1 ? '✓' : '●'} Filiale
+      </span>
+      <span style={{ margin: '0 0.5rem', color: 'var(--earth-pale)' }}>→</span>
+      <span style={{ color: step >= 2 ? 'var(--earth-dark)' : 'var(--text-muted)' }}>
+        {step > 2 ? '✓' : '●'} Type
+      </span>
+      <span style={{ margin: '0 0.5rem', color: 'var(--earth-pale)' }}>→</span>
+      <span style={{ color: step >= 3 ? 'var(--earth-dark)' : 'var(--text-muted)' }}>
+        ● Upload
+      </span>
+    </div>
+  );
+
+  // ─── ÉTAPE 1 : Sélection de la filiale ───
+  if (selectedFiliale === null) {
+    return (
+      <Layout>
+        <div style={{
+          padding: '4rem 4rem 4rem 8%', display: 'flex', flexDirection: 'column',
+          justifyContent: 'center', minHeight: 'calc(100vh - 88px)',
+        }}>
+          <StepIndicator />
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 500,
+            fontSize: '0.72rem', letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'var(--text-muted)',
+          }}>
+            IMPORT DE DONNÉES
+          </p>
+          <ThinLine />
+          <h1 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+            fontWeight: 700, lineHeight: 1.1, color: 'var(--earth-dark)',
+          }}>
+            Pour quelle filiale?
+          </h1>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 300,
+            fontSize: '1.05rem', lineHeight: 1.85, color: 'var(--text-secondary)',
+            marginTop: '0.75rem', maxWidth: '24rem',
+          }}>
+            Sélectionnez la filiale concernée par cet import.
+          </p>
+          <div style={{ height: '2.5rem' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', maxWidth: '700px', width: '100%' }}>
+            {FILIALES.map((f) => (
+              <button
+                key={f}
+                onClick={() => setSelectedFiliale(f)}
+                style={{
+                  textAlign: 'left', padding: '1.2rem 1.5rem',
+                  borderRadius: '12px', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+                  border: '1px solid var(--earth-pale)',
+                  background: 'white',
+                  transition: 'all 0.25s ease',
+                  fontSize: '1rem', fontWeight: 500, color: 'var(--earth-dark)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--earth-dark)';
+                  e.currentTarget.style.background = 'var(--bg-secondary)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(92,74,58,0.12)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--earth-pale)';
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // ─── ÉTAPE 2 : Sélection du type ───
   if (selectedType === null) {
     return (
       <Layout>
@@ -194,6 +326,21 @@ export const UploadPage: React.FC = () => {
           padding: '4rem 4rem 4rem 8%', display: 'flex', flexDirection: 'column',
           justifyContent: 'center', minHeight: 'calc(100vh - 88px)',
         }}>
+          <StepIndicator />
+          <button
+            onClick={goBackToFiliales}
+            style={{
+              alignSelf: 'flex-start', background: 'none', border: 'none',
+              cursor: 'pointer', fontFamily: "'Inter', sans-serif",
+              fontWeight: 500, fontSize: '0.82rem', color: 'var(--earth-mid)',
+              padding: '0.5rem 0', transition: 'color 0.2s', marginBottom: '0.5rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--earth-dark)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--earth-mid)'}
+          >
+            ← Retour
+          </button>
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 500,
             fontSize: '0.72rem', letterSpacing: '0.18em',
@@ -211,8 +358,15 @@ export const UploadPage: React.FC = () => {
           </h1>
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 300,
+            fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-muted)',
+            marginTop: '0.4rem',
+          }}>
+            Filiale: <strong>{selectedFiliale}</strong>
+          </p>
+          <p style={{
+            fontFamily: "'Inter', sans-serif", fontWeight: 300,
             fontSize: '1.05rem', lineHeight: 1.85, color: 'var(--text-secondary)',
-            marginTop: '0.75rem', maxWidth: '24rem',
+            marginTop: '0.3rem', maxWidth: '24rem',
           }}>
             Sélectionnez la catégorie correspondant à vos données.
           </p>
@@ -253,7 +407,7 @@ export const UploadPage: React.FC = () => {
     );
   }
 
-  // ─── ÉTAPE 2 : Upload ───
+  // ─── ÉTAPE 3 : Upload ───
   return (
     <Layout>
       <style>{`
@@ -267,8 +421,9 @@ export const UploadPage: React.FC = () => {
           padding: '8% 3rem 4rem 6%', display: 'flex',
           flexDirection: 'column', justifyContent: 'flex-start',
         }}>
+          <StepIndicator />
           <button
-            onClick={goBack}
+            onClick={goBackToTypes}
             style={{
               alignSelf: 'flex-start', background: 'none', border: 'none',
               cursor: 'pointer', fontFamily: "'Inter', sans-serif",
@@ -298,17 +453,17 @@ export const UploadPage: React.FC = () => {
           </h1>
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 300,
-            fontSize: '1.05rem', lineHeight: 1.85, color: 'var(--text-secondary)',
-            marginTop: '0.75rem', maxWidth: '24rem',
+            fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-muted)',
+            marginTop: '0.4rem',
           }}>
-            {typeLabels[selectedType]} &mdash; déposez votre fichier ci-contre.
+            Filiale: <strong>{selectedFiliale}</strong> &middot; Type: <strong>{typeLabels[selectedType]}</strong>
           </p>
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 300,
-            fontSize: '0.85rem', lineHeight: 1.6, color: 'var(--text-muted)',
-            marginTop: '0.25rem', fontStyle: 'italic',
+            fontSize: '1.05rem', lineHeight: 1.85, color: 'var(--text-secondary)',
+            marginTop: '0.3rem', maxWidth: '24rem',
           }}>
-            {typeLabels[selectedType]}
+            {typeLabels[selectedType]} &mdash; déposez votre fichier ci-contre.
           </p>
           <div style={{ height: '2.5rem' }} />
 
@@ -386,7 +541,7 @@ export const UploadPage: React.FC = () => {
               border: '1px solid var(--earth-pale)',
             }}>
               <button
-                onClick={goBack}
+                onClick={goBackToTypes}
                 style={{
                   position: 'absolute', top: '0.75rem', right: '0.75rem',
                   background: 'none', border: 'none', cursor: 'pointer',
@@ -416,9 +571,9 @@ export const UploadPage: React.FC = () => {
                   </p>
                   <p style={{
                     fontFamily: "'Inter', sans-serif", fontWeight: 300,
-                    fontSize: '1rem', color: 'var(--text-muted)', margin: '0.1rem 0 0',
+                    fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.1rem 0 0',
                   }}>
-                    {selectedType ? typeLabels[selectedType] : ''}
+                    {selectedFiliale} &middot; {selectedType ? typeLabels[selectedType] : ''}
                   </p>
                 </div>
               </div>
@@ -621,37 +776,115 @@ export const UploadPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Action buttons */}
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  onClick={() => resetFile(false)}
-                  style={{
-                    flex: 1, padding: '0.7rem 0',
-                    background: 'transparent', border: '1px solid var(--earth-pale)',
-                    borderRadius: '6px', fontFamily: "'Inter', sans-serif",
-                    fontWeight: 500, fontSize: '0.8rem', color: 'var(--earth-mid)',
-                    cursor: 'pointer', transition: 'all 0.3s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--earth-dark)'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--earth-pale)'; e.currentTarget.style.color = 'var(--earth-mid)'; }}
-                >
-                  Corriger le fichier
-                </button>
-                <button
-                  onClick={() => alert('Envoi vers SharePoint — disponible en Phase 5')}
-                  style={{
-                    flex: 1, padding: '0.7rem 0',
-                    background: 'var(--earth-dark)', border: 'none',
-                    borderRadius: '6px', fontFamily: "'Inter', sans-serif",
-                    fontWeight: 500, fontSize: '0.8rem', color: 'white',
-                    cursor: 'pointer', transition: 'all 0.3s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--earth-dark)'; }}
-                >
-                  Confirmer et envoyer
-                </button>
-              </div>
+              {/* Action buttons / submission status */}
+              {submissionStatus === 'sent' ? (
+                <div style={{
+                  padding: '1rem 1.2rem', background: '#F0F4F0',
+                  border: '1px solid #C8DCC8', borderRadius: '10px',
+                  display: 'flex', alignItems: 'center', gap: '0.6rem',
+                }}>
+                  <span style={{ fontSize: '1.1rem', color: '#5A7A5C' }}>✓</span>
+                  <span style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                    fontSize: '0.85rem', color: '#5A7A5C',
+                  }}>
+                    Fichier envoyé au supérieur hiérarchique pour validation.
+                  </span>
+                </div>
+              ) : submissionStatus === 'error' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{
+                    padding: '0.8rem 1rem', background: '#FAF0EE',
+                    border: '1px solid #D4A090', borderRadius: '8px',
+                  }}>
+                    <span style={{
+                      fontFamily: "'Inter', sans-serif", fontWeight: 400,
+                      fontSize: '0.82rem', color: '#8B5A52',
+                    }}>
+                      {submissionError}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      onClick={() => resetFile(false)}
+                      style={{
+                        flex: 1, padding: '0.7rem 0',
+                        background: 'transparent', border: '1px solid var(--earth-pale)',
+                        borderRadius: '6px', fontFamily: "'Inter', sans-serif",
+                        fontWeight: 500, fontSize: '0.8rem', color: 'var(--earth-mid)',
+                        cursor: 'pointer', transition: 'all 0.3s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--earth-dark)'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--earth-pale)'; e.currentTarget.style.color = 'var(--earth-mid)'; }}
+                    >
+                      Corriger le fichier
+                    </button>
+                    <button
+                      onClick={handleConfirmSubmit}
+                      style={{
+                        flex: 1, padding: '0.7rem 0',
+                        background: 'var(--earth-dark)', border: 'none',
+                        borderRadius: '6px', fontFamily: "'Inter', sans-serif",
+                        fontWeight: 500, fontSize: '0.8rem', color: 'white',
+                        cursor: 'pointer', transition: 'all 0.3s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--earth-dark)'; }}
+                    >
+                      Réessayer
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    onClick={() => resetFile(false)}
+                    style={{
+                      flex: 1, padding: '0.7rem 0',
+                      background: 'transparent', border: '1px solid var(--earth-pale)',
+                      borderRadius: '6px', fontFamily: "'Inter', sans-serif",
+                      fontWeight: 500, fontSize: '0.8rem', color: 'var(--earth-mid)',
+                      cursor: 'pointer', transition: 'all 0.3s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--earth-dark)'; e.currentTarget.style.color = 'var(--earth-dark)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--earth-pale)'; e.currentTarget.style.color = 'var(--earth-mid)'; }}
+                  >
+                    Corriger le fichier
+                  </button>
+                  <button
+                    onClick={handleConfirmSubmit}
+                    disabled={submissionStatus === 'sending'}
+                    style={{
+                      flex: 1, padding: '0.7rem 0',
+                      background: submissionStatus === 'sending' ? 'var(--earth-pale)' : 'var(--earth-dark)',
+                      border: 'none', borderRadius: '6px',
+                      fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                      fontSize: '0.8rem',
+                      color: submissionStatus === 'sending' ? 'var(--text-muted)' : 'white',
+                      cursor: submissionStatus === 'sending' ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.3s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (submissionStatus !== 'sending') e.currentTarget.style.background = 'var(--accent)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (submissionStatus !== 'sending') e.currentTarget.style.background = 'var(--earth-dark)';
+                    }}
+                  >
+                    {submissionStatus === 'sending' ? (
+                      <>
+                        <div style={{
+                          width: '14px', height: '14px', border: '2px solid var(--earth-pale)',
+                          borderTopColor: 'var(--earth-dark)', borderRadius: '50%',
+                          animation: 'upload-spin 0.8s linear infinite',
+                        }} />
+                        Envoi en cours...
+                      </>
+                    ) : 'Confirmer et envoyer'}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             /* DROP ZONE or FILE INFO or ERROR */

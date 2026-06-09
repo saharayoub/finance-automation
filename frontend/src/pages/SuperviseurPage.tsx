@@ -11,9 +11,10 @@ import { logout } from '../services/authService';
 /* ─── MOCK DATA ─── */
 
 const FILIALES = [
-  'Adwiya', 'Agora Djerba', 'Argania', 'Cipharm', 'CME',
-  'Fatale', 'Fertipro', 'Ikel', 'Prochidia', 'Teriak',
-  'Ikonia', 'Medicis', 'Nerolia', 'Protis', 'STA',
+  "Adwiya", "Agora Djerba", "Argania", "Cipharm", "CME",
+  "Fatale", "Fertipro", "Ikel", "Prochidia", "Teriak",
+  "Ikonia", "Medicis", "Nerolia", "Protis", "STA",
+  "RLK", "KH", "KHP", "Kilani Holding", "Kipropha", "KTP"
 ];
 
 const TYPES = ['ca', 'engagement', 'versement'] as const;
@@ -136,7 +137,7 @@ const navSuperviseurItems = [
 ];
 
 export const SuperviseurPage: React.FC = () => {
-  const [view, setView] = useState<'login' | 'home' | 'dashboard' | 'reports'>('login');
+  const [view, setView] = useState<'login' | 'home' | 'dashboard' | 'reports'>('home');
   const { accounts } = useMsal();
   const account = accounts[0];
   const navigate = useNavigate();
@@ -184,7 +185,7 @@ export const SuperviseurPage: React.FC = () => {
         fontFamily: "'Playfair Display', serif", fontWeight: 500,
         fontSize: '1.3rem', color: 'var(--earth-dark)', letterSpacing: '0.02em',
       }}>
-        Finance.
+        Groupe Kilani
       </span>
 
       <div style={{ display: 'flex', gap: '2rem' }}>
@@ -262,7 +263,7 @@ export const SuperviseurPage: React.FC = () => {
           <span style={{
             fontFamily: "'Playfair Display', serif", fontWeight: 400,
             fontSize: '1.2rem', color: 'var(--earth-mid)', letterSpacing: '0.02em',
-          }}>Finance.</span>
+          }}>Groupe Kilani</span>
           <ThinLine />
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 500,

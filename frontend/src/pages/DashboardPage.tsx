@@ -378,7 +378,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── SECTION 3 : ACTIVITÉ ─── */}
+      {/* ─── SECTION 3 : ACTIVITÉ ───
       <div style={{
         background: 'var(--bg-primary)',
         padding: '5rem 8%',
@@ -518,7 +518,7 @@ export const DashboardPage: React.FC = () => {
             </button>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* ─── FOOTER ─── */}
       <footer style={{
@@ -531,14 +531,14 @@ export const DashboardPage: React.FC = () => {
           fontFamily: "'Inter', sans-serif", fontWeight: 300,
           fontSize: '0.78rem', color: 'var(--text-muted)',
         }}>
-          Finance Automation &middot; v1.0
+          Kilani Groupe &middot; 
         </span>
-        <span style={{
+        {/* <span style={{
           fontFamily: "'Inter', sans-serif", fontWeight: 300,
           fontSize: '0.78rem', color: 'var(--text-muted)',
         }}>
           Propulsé par DeepSeek IA
-        </span>
+        </span> */}
       </footer>
     </Layout>
   );

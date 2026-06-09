@@ -57,7 +57,7 @@ export const Navbar: React.FC = () => {
           color: 'var(--earth-dark)',
           letterSpacing: '0.02em',
         }}>
-          Finance.
+          Groupe Kilani
         </span>
         <div style={{ display: 'flex', gap: '2rem' }}>
           {navItems.map((item) => (

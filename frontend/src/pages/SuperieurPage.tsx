@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { ThinLine } from '../components/Common/ThinLine';
 import { BlobMain } from '../components/Common/BlobMain';
@@ -6,10 +6,13 @@ import { BlobSecond } from '../components/Common/BlobSecond';
 import { DotsGrid } from '../components/Common/DotsGrid';
 import { FinanceIllustration } from '../components/Common/FinanceIllustration';
 import { logout } from '../services/authService';
+import api from '../services/api';
 
 /* ─── MOCK DATA ─── */
 
-const FILIALES = ['Adwiya', 'Argania'];
+const FILIALES = [
+  "Adwiya", "Argania"
+];
 
 const TYPES = ['ca', 'engagement', 'versement'] as const;
 const TYPE_LABELS: Record<string, string> = {
@@ -57,7 +60,7 @@ const navSuperieurItems = [
 /* ─── COMPONENT ─── */
 
 export const SuperieurPage: React.FC = () => {
-  const [view, setView] = useState<'login' | 'home' | 'dashboard' | 'reports'>('login');
+  const [view, setView] = useState<'login' | 'home' | 'dashboard' | 'reports'>('home');
   const { accounts } = useMsal();
   const account = accounts[0];
   const [scrolled, setScrolled] = useState(false);
@@ -67,6 +70,40 @@ export const SuperieurPage: React.FC = () => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const [pendingSubmissions, setPendingSubmissions] = useState<any[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const res = await api.get('/api/submissions/pending');
+        setPendingSubmissions(res.data?.submissions || []);
+      } catch { /* ignore */ }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const timeAgo = (iso: string): string => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'à l\'instant';
+    if (mins < 60) return `il y a ${mins} min`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `il y a ${hrs}h`;
+    return `il y a ${Math.floor(hrs / 24)}j`;
+  };
 
   const getInitials = (name: string) => {
     if (!name) return '?';
@@ -100,7 +137,7 @@ export const SuperieurPage: React.FC = () => {
         fontFamily: "'Playfair Display', serif", fontWeight: 500,
         fontSize: '1.3rem', color: 'var(--earth-dark)', letterSpacing: '0.02em',
       }}>
-        Finance.
+        Groupe Kilani
       </span>
 
       <div style={{ display: 'flex', gap: '2rem' }}>
@@ -124,6 +161,102 @@ export const SuperieurPage: React.FC = () => {
             </button>
           );
         })}
+      </div>
+
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} ref={notifRef}>
+        <button
+          onClick={() => setNotifOpen(!notifOpen)}
+          title="Notifications"
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: '1.3rem', lineHeight: 1, padding: '0.3rem',
+            position: 'relative', transition: 'opacity 0.2s',
+            opacity: notifOpen ? 1 : 0.7,
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = notifOpen ? '1' : '0.7'}
+        >
+          🔔
+          {pendingSubmissions.length > 0 && (
+            <span style={{
+              position: 'absolute', top: '-2px', right: '-6px',
+              minWidth: '16px', height: '16px', borderRadius: '50%',
+              background: '#C4826A', color: 'white',
+              fontFamily: "'Inter', sans-serif", fontWeight: 600,
+              fontSize: '0.6rem', lineHeight: '16px', textAlign: 'center',
+              padding: '0 4px',
+            }}>
+              {pendingSubmissions.length > 9 ? '9+' : pendingSubmissions.length}
+            </span>
+          )}
+        </button>
+
+        {notifOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+            width: '380px', background: 'white', borderRadius: '12px',
+            border: '1px solid var(--earth-pale)',
+            boxShadow: '0 8px 30px rgba(92,74,58,0.12)',
+            zIndex: 200, maxHeight: '420px', overflowY: 'auto',
+          }}>
+            <div style={{
+              padding: '1rem 1.2rem', borderBottom: '1px solid var(--earth-pale)',
+              fontFamily: "'Inter', sans-serif", fontWeight: 600,
+              fontSize: '0.8rem', color: 'var(--earth-dark)',
+              letterSpacing: '0.05em', textTransform: 'uppercase',
+            }}>
+              🔔 notifications ({pendingSubmissions.length})
+            </div>
+            {pendingSubmissions.length === 0 ? (
+              <div style={{
+                padding: '2rem 1.2rem', textAlign: 'center',
+                fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                fontSize: '0.85rem', color: 'var(--text-muted)',
+              }}>
+                Aucune soumission en attente.
+              </div>
+            ) : (
+              pendingSubmissions.map((s: any) => (
+                <div key={s.id} style={{
+                  padding: '0.9rem 1.2rem', borderBottom: '1px solid var(--earth-pale)',
+                  transition: 'background 0.2s', cursor: 'default',
+                }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                    fontSize: '0.85rem', color: 'var(--earth-dark)', margin: 0,
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  }}>
+                    <span style={{ color: '#7A6152', fontSize: '0.7rem' }}>●</span>
+                    {s.filiale} &middot; {s.type} &middot; {s.periode}
+                  </div>
+                  <p style={{
+                    fontFamily: "'Inter', sans-serif", fontWeight: 300,
+                    fontSize: '0.75rem', color: 'var(--text-muted)',
+                    margin: '0.15rem 0 0.4rem',
+                  }}>
+                    {s.uploaded_by} &middot; {timeAgo(s.uploaded_at)}
+                  </p>
+                  <button
+                    onClick={() => { setNotifOpen(false); setView('dashboard'); }}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontFamily: "'Inter', sans-serif", fontWeight: 500,
+                      fontSize: '0.78rem', color: 'var(--earth-mid)',
+                      padding: 0, transition: 'color 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--earth-dark)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--earth-mid)'}
+                  >
+                    Voir et valider &rarr;
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <div
@@ -178,7 +311,7 @@ export const SuperieurPage: React.FC = () => {
           <span style={{
             fontFamily: "'Playfair Display', serif", fontWeight: 400,
             fontSize: '1.2rem', color: 'var(--earth-mid)', letterSpacing: '0.02em',
-          }}>Finance.</span>
+          }}>Groupe Kilani</span>
           <ThinLine />
           <p style={{
             fontFamily: "'Inter', sans-serif", fontWeight: 500,
